@@ -8,7 +8,7 @@ import VectorSource from 'ol/source/Vector';
 import XYZ from 'ol/source/XYZ';
 import Draw from 'ol/interaction/Draw';
 import { fromLonLat, toLonLat } from 'ol/proj';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 // import jsPDF from 'jspdf';
 // import html2canvas from 'html2canvas';
 // import Papa from 'papaparse';
@@ -158,6 +158,207 @@ const StatisticsChart = ({ data, dataType, selectedMonth, onMonthSelect }) => {
   );
 };
 
+// Horizontal Statistics Popup Component
+const StatisticsPopup = ({ ndviData, lstData, selectedMonth, onMonthSelect, onClose }) => {
+  if (!ndviData && !lstData) return null;
+
+  const createHorizontalChart = (data, dataType) => {
+    if (!data || !data.length) return null;
+    
+    const chartData = data.map((item, index) => ({
+      month: item.month_name.split(' ')[0].substring(0, 3),
+      mean: item.statistics.mean,
+      min: item.statistics.min,
+      max: item.statistics.max,
+      fullName: item.month_name,
+      isSelected: index === selectedMonth
+    }));
+
+    const colors = dataType === 'NDVI' ? {
+      mean: '#10b981', min: '#ef4444', max: '#3b82f6'
+    } : {
+      mean: '#f59e0b', min: '#06b6d4', max: '#dc2626'
+    };
+
+    return (
+      <div className="h-32">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 15 }}>
+            <CartesianGrid strokeDasharray="2 2" stroke="#374151" opacity={0.2} />
+            <XAxis 
+              dataKey="month" 
+              stroke="#9ca3af"
+              fontSize={10}
+            />
+            <YAxis 
+              stroke="#9ca3af"
+              fontSize={9}
+              domain={['dataMin - 0.05', 'dataMax + 0.05']}
+              width={35}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: '#1f2937',
+                border: '1px solid #374151',
+                borderRadius: '6px',
+                color: '#fff',
+                fontSize: '12px'
+              }}
+              formatter={(value, name) => [
+                value.toFixed(4), 
+                name.charAt(0).toUpperCase() + name.slice(1)
+              ]}
+            />
+            <Bar dataKey="mean" fill={colors.mean} opacity={0.8} />
+            <Bar dataKey="min" fill={colors.min} opacity={0.6} />
+            <Bar dataKey="max" fill={colors.max} opacity={0.6} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    );
+  };
+
+  const getCardColor = (type) => {
+    if (type === 'NDVI') return 'from-green-500/20 to-emerald-500/20 border-green-500/30';
+    if (type === 'LST') return 'from-orange-500/20 to-red-500/20 border-orange-500/30';
+    return 'from-blue-500/20 to-purple-500/20 border-blue-500/30';
+  };
+
+  return (
+    <div className="absolute bottom-4 left-4 right-4 z-40 flex items-end justify-center">
+      <div className="bg-black/90 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[70vh] overflow-auto">
+        {/* Header */}
+        <div className="p-6 border-b border-white/10 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-white mb-1">Statistics Overview</h2>
+            <p className="text-sm text-gray-400">NDVI Data & LST Analysis - Click on bars to select different months</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white transition-colors text-xl p-2 rounded-lg hover:bg-white/10"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* 3-Card Linear Layout */}
+        <div className="p-4 space-y-4">
+          {/* NDVI Card */}
+          {ndviData && (
+            <div className={`bg-gradient-to-r ${getCardColor('NDVI')} border rounded-xl p-6`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-green-500/20">
+                    <div className="w-4 h-4 rounded bg-green-500"></div>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">NDVI Statistics Over Time</h3>
+                    <p className="text-xs text-gray-400">Normalized Difference Vegetation Index</p>
+                  </div>
+                </div>
+                {ndviData[selectedMonth] && (
+                  <div className="text-right">
+                    <div className="text-sm text-gray-300">{ndviData[selectedMonth].month_name}</div>
+                    <div className="grid grid-cols-3 gap-4 text-xs mt-2">
+                      <div className="text-center">
+                        <div className="text-gray-400">Mean</div>
+                        <div className="font-mono text-green-400 font-medium">{ndviData[selectedMonth].statistics.mean.toFixed(4)}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-gray-400">Min</div>
+                        <div className="font-mono text-red-400 font-medium">{ndviData[selectedMonth].statistics.min.toFixed(4)}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-gray-400">Max</div>
+                        <div className="font-mono text-blue-400 font-medium">{ndviData[selectedMonth].statistics.max.toFixed(4)}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {createHorizontalChart(ndviData, 'NDVI')}
+            </div>
+          )}
+
+          {/* LST Card */}
+          {lstData && (
+            <div className={`bg-gradient-to-r ${getCardColor('LST')} border rounded-xl p-6`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-orange-500/20">
+                    <div className="w-4 h-4 rounded bg-orange-500"></div>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">LST Statistics Over Time</h3>
+                    <p className="text-xs text-gray-400">Land Surface Temperature</p>
+                  </div>
+                </div>
+                {lstData[selectedMonth] && (
+                  <div className="text-right">
+                    <div className="text-sm text-gray-300">{lstData[selectedMonth].month_name}</div>
+                    <div className="grid grid-cols-3 gap-4 text-xs mt-2">
+                      <div className="text-center">
+                        <div className="text-gray-400">Mean</div>
+                        <div className="font-mono text-amber-400 font-medium">{lstData[selectedMonth].statistics.mean.toFixed(4)}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-gray-400">Min</div>
+                        <div className="font-mono text-cyan-400 font-medium">{lstData[selectedMonth].statistics.min.toFixed(4)}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-gray-400">Max</div>
+                        <div className="font-mono text-red-400 font-medium">{lstData[selectedMonth].statistics.max.toFixed(4)}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {createHorizontalChart(lstData, 'LST')}
+            </div>
+          )}
+
+          {/* Combined Overview Card */}
+          {ndviData && lstData && (
+            <div className={`bg-gradient-to-r ${getCardColor('Combined')} border rounded-xl p-6`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-blue-500/20">
+                    <div className="w-4 h-4 rounded bg-gradient-to-r from-green-500 to-orange-500"></div>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Combined Analysis Overview</h3>
+                    <p className="text-xs text-gray-400">NDVI & LST Correlation Data</p>
+                  </div>
+                </div>
+                <div className="text-right text-xs">
+                  <div className="text-gray-300 mb-2">September 2024 - Current Selection</div>
+                  <div className="flex gap-4">
+                    <div className="text-center">
+                      <div className="text-green-400 font-medium">NDVI: 0.7700</div>
+                      <div className="text-gray-500">High Vegetation</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-orange-400 font-medium">LST: 28.5°C</div>
+                      <div className="text-gray-500">Warm Temperature</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="h-32 bg-gray-800/50 rounded-lg flex items-center justify-center">
+                <div className="text-center text-gray-400">
+                  <BarChart3 className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <div className="text-sm">Combined Analysis Chart</div>
+                  <div className="text-xs">Correlation visualization between NDVI and LST data</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const EarthEngineDashboard = () => {
   const [selectedArea, setSelectedArea] = useState('Amazon Rainforest (Brazil)');
   const [basemap, setBasemap] = useState('satellite');
@@ -188,6 +389,7 @@ const EarthEngineDashboard = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [isLayerSwitching, setIsLayerSwitching] = useState(false);
+  const [showStatsPopup, setShowStatsPopup] = useState(false);
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const vectorSourceRef = useRef(null);
@@ -427,10 +629,30 @@ const EarthEngineDashboard = () => {
       console.log('🎯 Starting custom data fetch for coordinates:', coordinates);
       console.log('📡 Making API call for', analysisLayer, 'to custom endpoint...');
       
+      // Check if this is point data (single coordinate pair) or polygon data (array of coordinate arrays)
+      const isPointData = drawnFeatures.length > 0 && drawnFeatures[0].type === 'point';
+      console.log('🔍 Data type detected:', isPointData ? 'Point' : 'Polygon');
+      
       let customResponse;
       if (analysisLayer === 'NDVI') {
-        customResponse = await customAPI.getNDVIData(coordinates);
-        console.log('✅ Custom NDVI API Response:', customResponse);
+        if (isPointData) {
+          // For point data, coordinates is [longitude, latitude]
+          const [longitude, latitude] = coordinates[0];
+          
+          if (aoiMode === 'default') {
+            // Default rainforest mode: use monthly point API
+            customResponse = await customAPI.ndviPointAnalysis({ longitude, latitude, month: selectedMonth + 1 });
+            console.log('✅ Default NDVI Point API Response (monthly):', customResponse);
+          } else {
+            // Custom draw mode: use regular point API (same format as polygon)
+            customResponse = await customAPI.ndviCustomPointAnalysis({ longitude, latitude });
+            console.log('✅ Custom NDVI Point API Response:', customResponse);
+          }
+        } else {
+          // For polygon data, use existing polygon API
+          customResponse = await customAPI.getNDVIData(coordinates);
+          console.log('✅ Custom NDVI Polygon API Response:', customResponse);
+        }
         
         if (customResponse) {
           console.log('📊 NDVI Data Summary:');
@@ -444,8 +666,24 @@ const EarthEngineDashboard = () => {
         
         setCustomNdviData(customResponse);
       } else {
-        customResponse = await customAPI.getLSTData(coordinates);
-        console.log('✅ Custom LST API Response:', customResponse);
+        if (isPointData) {
+          // For point data, coordinates is [longitude, latitude]
+          const [longitude, latitude] = coordinates[0];
+          
+          if (aoiMode === 'default') {
+            // Default rainforest mode: use monthly point API
+            customResponse = await customAPI.lstPointAnalysis({ longitude, latitude, month: selectedMonth + 1 });
+            console.log('✅ Default LST Point API Response (monthly):', customResponse);
+          } else {
+            // Custom draw mode: use regular point API (same format as polygon)
+            customResponse = await customAPI.lstCustomPointAnalysis({ longitude, latitude });
+            console.log('✅ Custom LST Point API Response:', customResponse);
+          }
+        } else {
+          // For polygon data, use existing polygon API
+          customResponse = await customAPI.getLSTData(coordinates);
+          console.log('✅ Custom LST Polygon API Response:', customResponse);
+        }
         
         if (customResponse) {
           console.log('🌡️ LST Data Summary:');
@@ -764,6 +1002,7 @@ const EarthEngineDashboard = () => {
     }
   };
 
+
   const toggleDrawingMode = (mode) => {
     if (!mapInstanceRef.current) return;
     
@@ -789,7 +1028,8 @@ const EarthEngineDashboard = () => {
       });
     }
     
-    const drawType = 'Polygon';
+    // Set drawing type based on mode
+    const drawType = mode === 'point' ? 'Point' : 'Polygon';
     const drawInteraction = new Draw({
       source: vectorSourceRef.current,
       type: drawType
@@ -798,47 +1038,78 @@ const EarthEngineDashboard = () => {
     drawInteraction.on('drawend', (event) => {
       const feature = event.feature;
       const geometry = feature.getGeometry();
-      const coordinates = geometry.getCoordinates();
       
-      // Convert coordinates from map projection to WGS84 (longitude/latitude)
-      const wgs84Coordinates = coordinates[0].map(coord => toLonLat(coord));
-      
-      // Close the polygon by ensuring first and last points are the same
-      if (wgs84Coordinates.length > 0) {
-        const firstPoint = wgs84Coordinates[0];
-        const lastPoint = wgs84Coordinates[wgs84Coordinates.length - 1];
-        if (firstPoint[0] !== lastPoint[0] || firstPoint[1] !== lastPoint[1]) {
-          wgs84Coordinates.push([...firstPoint]);
+      if (mode === 'point') {
+        // Handle point drawing
+        const coordinates = geometry.getCoordinates();
+        const wgs84Coordinates = toLonLat(coordinates);
+        
+        console.log('📍 Point drawn at WGS84:', wgs84Coordinates);
+        
+        // Clear previous drawings before adding new one
+        if (drawnFeatures.length > 0) {
+          clearDrawings();
         }
+        
+        const newFeature = {
+          id: Date.now(),
+          type: mode,
+          geometry: coordinates, // Keep original for display
+          bounds: geometry.getExtent(),
+          wgs84Coordinates: wgs84Coordinates
+        };
+        
+        setDrawnFeatures([newFeature]); // Replace with new feature
+        setDrawingMode(null);
+        mapInstanceRef.current.removeInteraction(drawInteractionRef.current);
+        
+        // Store point coordinates for analysis button
+        setPendingPolygonCoords([wgs84Coordinates]); // Store point coordinates
+        setShowAnalysisButton(true);
+        console.log('🎯 Point placed successfully. Ready for analysis.');
+        
+      } else {
+        // Handle polygon drawing
+        const coordinates = geometry.getCoordinates();
+        const wgs84Coordinates = coordinates[0].map(coord => toLonLat(coord));
+        
+        // Close the polygon by ensuring first and last points are the same
+        if (wgs84Coordinates.length > 0) {
+          const firstPoint = wgs84Coordinates[0];
+          const lastPoint = wgs84Coordinates[wgs84Coordinates.length - 1];
+          if (firstPoint[0] !== lastPoint[0] || firstPoint[1] !== lastPoint[1]) {
+            wgs84Coordinates.push([...firstPoint]);
+          }
+        }
+        
+        console.log('🌍 Polygon converted to WGS84:', {
+          originalLength: coordinates[0].length,
+          wgs84Length: wgs84Coordinates.length,
+          firstPoint: wgs84Coordinates[0],
+          lastPoint: wgs84Coordinates[wgs84Coordinates.length - 1]
+        });
+        
+        // Clear previous drawings before adding new one
+        if (drawnFeatures.length > 0) {
+          clearDrawings();
+        }
+        
+        const newFeature = {
+          id: Date.now(),
+          type: mode,
+          geometry: coordinates, // Keep original for display
+          bounds: geometry.getExtent()
+        };
+        
+        setDrawnFeatures([newFeature]); // Replace with new feature
+        setDrawingMode(null);
+        mapInstanceRef.current.removeInteraction(drawInteractionRef.current);
+        
+        // Store WGS84 coordinates for API calls
+        setPendingPolygonCoords([wgs84Coordinates]); // Wrap in array to match expected format
+        setShowAnalysisButton(true);
+        console.log('🎯 Polygon drawn successfully. Ready for analysis.');
       }
-      
-      console.log('🌍 Converted coordinates to WGS84:', {
-        originalLength: coordinates[0].length,
-        wgs84Length: wgs84Coordinates.length,
-        firstPoint: wgs84Coordinates[0],
-        lastPoint: wgs84Coordinates[wgs84Coordinates.length - 1]
-      });
-      
-      // Clear previous drawings before adding new one
-      if (drawnFeatures.length > 0) {
-        clearDrawings();
-      }
-      
-      const newFeature = {
-        id: Date.now(),
-        type: mode,
-        geometry: coordinates, // Keep original for display
-        bounds: geometry.getExtent()
-      };
-      
-      setDrawnFeatures([newFeature]); // Replace with new feature
-      setDrawingMode(null);
-      mapInstanceRef.current.removeInteraction(drawInteractionRef.current);
-      
-      // Store WGS84 coordinates for API calls
-      setPendingPolygonCoords([wgs84Coordinates]); // Wrap in array to match expected format
-      setShowAnalysisButton(true);
-      console.log('🎯 Polygon drawn successfully. Ready for analysis.');
     });
     
     mapInstanceRef.current.addInteraction(drawInteraction);
@@ -1033,6 +1304,7 @@ const EarthEngineDashboard = () => {
               <h1 className="text-sm lg:text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                 Earth Engine Pro
               </h1>
+            
               <p className="text-xs lg:text-sm text-gray-300 hidden lg:block">Amazon Rainforest Analysis</p>
             </div>
           </div>
@@ -1118,17 +1390,31 @@ const EarthEngineDashboard = () => {
             
             {aoiMode === 'draw' && (
               <>
-                <button
-                  onClick={() => toggleDrawingMode('polygon')}
-                  className={`w-full px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 flex items-center justify-center gap-2 mb-3 ${
-                    drawingMode === 'polygon'
-                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
-                      : 'bg-white/5 text-gray-300 hover:bg-white/10 backdrop-blur-sm'
-                  }`}
-                >
-                  <div className="w-4 h-4 border-2 border-current transform rotate-45"></div>
-                  {drawingMode === 'polygon' ? 'Drawing...' : 'Draw Polygon'}
-                </button>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <button
+                    onClick={() => toggleDrawingMode('polygon')}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 flex items-center justify-center gap-2 ${
+                      drawingMode === 'polygon'
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
+                        : 'bg-white/5 text-gray-300 hover:bg-white/10 backdrop-blur-sm'
+                    }`}
+                  >
+                    <div className="w-3 h-3 border-2 border-current transform rotate-45"></div>
+                    {drawingMode === 'polygon' ? 'Drawing...' : 'Polygon'}
+                  </button>
+                  
+                  <button
+                    onClick={() => toggleDrawingMode('point')}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 flex items-center justify-center gap-2 ${
+                      drawingMode === 'point'
+                        ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
+                        : 'bg-white/5 text-gray-300 hover:bg-white/10 backdrop-blur-sm'
+                    }`}
+                  >
+                    <MapPin className="w-3 h-3" />
+                    {drawingMode === 'point' ? 'Pinning...' : 'Pin Point'}
+                  </button>
+                </div>
                 
                 {(drawnFeatures.length > 0 || showAnalysisButton) && (
                   <div className="mb-3 space-y-2">
@@ -1191,54 +1477,162 @@ const EarthEngineDashboard = () => {
             )}
           </div>
 
-          {/* Modern Month Picker */}
-          <div>
-            <div className="flex items-center justify-between mb-2 lg:mb-3">
-              <label className="text-xs lg:text-sm font-medium text-gray-300">Time Period</label>
-              <div className="flex items-center gap-1 lg:gap-2 hidden lg:flex">
-                <Calendar className="w-3 lg:w-4 h-3 lg:h-4 text-blue-400" />
-                <span className="text-xs text-blue-400">{getTimePeriod()}</span>
-              </div>
-            </div>
-            
-            {/* Month Navigation */}
-            <div className="flex items-center justify-between mb-4">
-              <button
-                onClick={() => setSelectedMonth(Math.max(0, selectedMonth - 1))}
-                disabled={selectedMonth === 0 || loading || !getCurrentData()}
-                className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 backdrop-blur-sm"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              
-              <div className="flex-1 mx-3">
-                <div className="text-center">
-                  <div className="text-lg font-semibold text-white mb-1">
-                    {getMonthNames()[selectedMonth]?.split(' ')[0] || 'Loading...'}
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    Month {selectedMonth + 1} of {getMonthNames().length || 12}
-                  </div>
+          {/* Time Period Section - Show chart in custom mode, month picker in default mode */}
+          {aoiMode === 'draw' && (customNdviData?.monthly_statistics || customLstData?.monthly_statistics) ? (
+            /* Custom Mode: Show Chart */
+            <div>
+              <div className="flex items-center justify-between mb-2 lg:mb-3">
+                <label className="text-xs lg:text-sm font-medium text-gray-300">Statistics Chart</label>
+                <div className="flex items-center gap-1 lg:gap-2">
+                  <BarChart3 className="w-3 lg:w-4 h-3 lg:h-4 text-blue-400" />
+                  <span className="text-xs text-blue-400">{analysisLayer} Analysis</span>
                 </div>
               </div>
               
-              <button
-                onClick={() => setSelectedMonth(Math.min(getMonthNames().length - 1, selectedMonth + 1))}
-                disabled={selectedMonth >= (getMonthNames().length - 1) || loading || !getCurrentData()}
-                className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 backdrop-blur-sm"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              {/* Chart Display */}
+              <div className="bg-gray-800/30 rounded-lg p-4 mb-4">
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart 
+                      data={getCurrentData()?.monthly_statistics?.map((item, index) => ({
+                        month: item.month_name.split(' ')[0].substring(0, 3),
+                        mean: item.statistics.mean,
+                        min: item.statistics.min,
+                        max: item.statistics.max,
+                        index: index
+                      })) || []}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+                      <XAxis 
+                        dataKey="month" 
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#9CA3AF', fontSize: 12 }}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#9CA3AF', fontSize: 12 }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '8px',
+                          color: '#fff'
+                        }}
+                        formatter={(value, name) => [value.toFixed(4), name.charAt(0).toUpperCase() + name.slice(1)]}
+                      />
+                      
+                      {/* Three horizontal lines for min, max, mean */}
+                      <Line 
+                        type="monotone" 
+                        dataKey="max" 
+                        stroke="#ef4444" 
+                        strokeWidth={2}
+                        dot={{ fill: '#ef4444', strokeWidth: 2, r: 4 }}
+                        activeDot={{ r: 6, stroke: '#ef4444', strokeWidth: 2, fill: '#fff' }}
+                        name="Maximum"
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="mean" 
+                        stroke={analysisLayer === 'NDVI' ? '#10b981' : '#f59e0b'} 
+                        strokeWidth={3}
+                        dot={{ fill: analysisLayer === 'NDVI' ? '#10b981' : '#f59e0b', strokeWidth: 2, r: 5 }}
+                        activeDot={{ r: 7, stroke: analysisLayer === 'NDVI' ? '#10b981' : '#f59e0b', strokeWidth: 2, fill: '#fff' }}
+                        name="Mean"
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="min" 
+                        stroke="#3b82f6" 
+                        strokeWidth={2}
+                        dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
+                        activeDot={{ r: 6, stroke: '#3b82f6', strokeWidth: 2, fill: '#fff' }}
+                        name="Minimum"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                
+                {/* Chart Legend and Selected Month Info */}
+                <div className="mt-3 pt-3 border-t border-white/10">
+                  <div className="flex items-center justify-center gap-4 mb-3">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-0.5 bg-red-500"></div>
+                      <span className="text-xs text-gray-300">Max</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className={`w-3 h-0.5 ${analysisLayer === 'NDVI' ? 'bg-green-500' : 'bg-orange-500'}`}></div>
+                      <span className="text-xs text-gray-300">Mean</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-0.5 bg-blue-500"></div>
+                      <span className="text-xs text-gray-300">Min</span>
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-medium text-white mb-1">
+                      {getMonthNames()[selectedMonth] || 'Loading...'}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      Hover over chart points for detailed values
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            
-            {/* Month Grid */}
-            <div className="grid grid-cols-3 gap-2">
-              {getMonthNames().map((month, index) => {
-                const monthShort = month?.split(' ')[0]?.substring(0, 3) || `M${index + 1}`;
-                return (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedMonth(index)}
+          ) : (
+            /* Default Mode: Show Month Picker */
+            <div>
+              <div className="flex items-center justify-between mb-2 lg:mb-3">
+                <label className="text-xs lg:text-sm font-medium text-gray-300">Time Period</label>
+                <div className="flex items-center gap-1 lg:gap-2 hidden lg:flex">
+                  <Calendar className="w-3 lg:w-4 h-3 lg:h-4 text-blue-400" />
+                  <span className="text-xs text-blue-400">{getTimePeriod()}</span>
+                </div>
+              </div>
+              
+              {/* Month Navigation */}
+              <div className="flex items-center justify-between mb-4">
+                <button
+                  onClick={() => setSelectedMonth(Math.max(0, selectedMonth - 1))}
+                  disabled={selectedMonth === 0 || loading || !getCurrentData()}
+                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 backdrop-blur-sm"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                
+                <div className="flex-1 mx-3">
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-white mb-1">
+                      {getMonthNames()[selectedMonth]?.split(' ')[0] || 'Loading...'}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      Month {selectedMonth + 1} of {getMonthNames().length || 12}
+                    </div>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={() => setSelectedMonth(Math.min(getMonthNames().length - 1, selectedMonth + 1))}
+                  disabled={selectedMonth >= (getMonthNames().length - 1) || loading || !getCurrentData()}
+                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 backdrop-blur-sm"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+              
+              {/* Month Grid */}
+              <div className="grid grid-cols-3 gap-2">
+                {getMonthNames().map((month, index) => {
+                  const monthShort = month?.split(' ')[0]?.substring(0, 3) || `M${index + 1}`;
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedMonth(index)}
                     disabled={loading || !getCurrentData()}
                     className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-300 ${
                       selectedMonth === index
@@ -1265,28 +1659,9 @@ const EarthEngineDashboard = () => {
                 ></div>
               </div>
             </div>
-          </div>
-
-          {/* Statistics Chart for Custom Data */}
-          {aoiMode === 'draw' && getCurrentData() && getCurrentData().monthly_statistics && (
-            <div className="mt-6">
-              <div className="flex items-center justify-between mb-3">
-                <label className="text-sm font-medium text-gray-300">Statistics Overview</label>
-                <div className="flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-blue-400" />
-                  <span className="text-xs text-blue-400">{analysisLayer} Data</span>
-                </div>
-              </div>
-              <div className="bg-black/20 border border-white/10 rounded-xl p-4">
-                <StatisticsChart 
-                  data={getCurrentData().monthly_statistics}
-                  dataType={analysisLayer}
-                  selectedMonth={selectedMonth}
-                  onMonthSelect={setSelectedMonth}
-                />
-              </div>
             </div>
           )}
+
 
         </div>
 
@@ -1425,6 +1800,15 @@ const EarthEngineDashboard = () => {
                 <ZoomOut className="w-4 h-4 text-white" />
               </button>
               
+              {/* Statistics Overview Button */}
+              <button
+                onClick={() => setShowStatsPopup(true)}
+                className="p-3 rounded-xl bg-gradient-to-r from-green-500/20 to-orange-500/20 hover:from-green-500/30 hover:to-orange-500/30 backdrop-blur-sm transition-all duration-300 hover:scale-105 shadow-lg border border-white/20"
+                title="View Statistics Overview"
+              >
+                <BarChart3 className="w-4 h-4 text-white" />
+              </button>
+
               {chartData.length > 0 && (
                 <button
                   onClick={() => setShowChart(!showChart)}
@@ -1731,6 +2115,29 @@ const EarthEngineDashboard = () => {
               ></div>
             </div>
           )}
+
+        </div>
+      </div>
+
+      {/* Statistics Popup */}
+      {showStatsPopup && (
+        <StatisticsPopup
+          ndviData={aoiMode === 'draw' ? customNdviData?.monthly_statistics : null}
+          lstData={aoiMode === 'draw' ? customLstData?.monthly_statistics : null}
+          selectedMonth={selectedMonth}
+          onMonthSelect={setSelectedMonth}
+          onClose={() => setShowStatsPopup(false)}
+        />
+      )}
+
+      {/* Developer Credit */}
+      <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none">
+        <div className="bg-gradient-to-t from-black/50 to-transparent py-2">
+          <div className="text-center">
+            <p className="text-xs text-gray-400 opacity-70">
+              Developed by <span className="font-medium text-gray-300">Hem Raj Pandey</span>
+            </p>
+          </div>
         </div>
       </div>
 
