@@ -91,12 +91,6 @@ export const customAPI = {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          geometry: {
-            geometry: {
-              type: "Point",
-              coordinates: [longitude, latitude]
-            }
-          },
           latitude: latitude,
           longitude: longitude,
           month: month
@@ -121,12 +115,6 @@ export const customAPI = {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          geometry: {
-            geometry: {
-              type: "Point",
-              coordinates: [longitude, latitude]
-            }
-          },
           latitude: latitude,
           longitude: longitude,
           month: month
@@ -170,6 +158,7 @@ export const customAPI = {
       throw error;
     }
   },
+
 
   async lstCustomPointAnalysis({ longitude, latitude }) {
     try {

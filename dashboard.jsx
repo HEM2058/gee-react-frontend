@@ -536,26 +536,107 @@ const EarthEngineDashboard = () => {
   };
 
   const getPixelValue = async (coordinate) => {
-    const data = getCurrentData();
-    if (!data || !data.monthly_layers[selectedMonth]) {
+    const [lon, lat] = coordinate;
+    
+    // Determine which data type has loaded tiles
+    const ndviDataSource = aoiMode === 'draw' ? customNdviData : ndviData;
+    const lstDataSource = aoiMode === 'draw' ? customLstData : lstData;
+    
+    let hasNdviData = ndviDataSource && ndviDataSource.monthly_layers && ndviDataSource.monthly_layers[selectedMonth];
+    let hasLstData = lstDataSource && lstDataSource.monthly_layers && lstDataSource.monthly_layers[selectedMonth];
+    
+    console.log('🖱️ MAP CLICK DETECTED');
+    console.log('🎯 Current Analysis Type:', analysisLayer);
+    console.log('📅 Selected Month Index:', selectedMonth);
+    console.log('🗺️ AOI Mode:', aoiMode);
+    console.log('📍 Click Coordinates:', { longitude: lon, latitude: lat });
+    console.log('');
+    
+    console.log('🔍 Tile Data Check:');
+    console.log('   NDVI data available:', hasNdviData);
+    console.log('   LST data available:', hasLstData);
+    console.log('   Analysis Layer (UI):', analysisLayer);
+    
+    // Use the data type that actually has loaded tiles
+    let dataToUse = null;
+    let apiLayerToUse = analysisLayer;
+    
+    if (hasLstData && !hasNdviData) {
+      dataToUse = lstDataSource;
+      apiLayerToUse = 'LST';
+      console.log('   → Using LST data (LST tiles loaded)');
+    } else if (hasNdviData && !hasLstData) {
+      dataToUse = ndviDataSource;
+      apiLayerToUse = 'NDVI';
+      console.log('   → Using NDVI data (NDVI tiles loaded)');
+    } else if (hasNdviData && hasLstData) {
+      // Both available, use UI selection
+      dataToUse = getCurrentData();
+      console.log('   → Using', analysisLayer, 'data (both available, using UI selection)');
+    } else {
+      console.log('❌ No tile data available');
       return null;
     }
 
-    const monthData = data.monthly_layers[selectedMonth];
-    const [lon, lat] = coordinate;
+    if (!dataToUse || !dataToUse.monthly_layers[selectedMonth]) {
+      return null;
+    }
+
+    const monthData = dataToUse.monthly_layers[selectedMonth];
 
     try {
-      // Use GEE's getValue API to get real pixel values
+      // 1. Get pixel value from tile
+      console.log('🚀 Initiating monthly point API call...');
       const pixelValue = await getGEEPixelValue([lon, lat], monthData);
+      
+      // 2. Make monthly API call with correct month and API type
+      let monthForApi = selectedMonth + 1; // fallback
+      const monthName = monthData.month_name;
+      
+      // Convert month name to YYYY-MM format
+      if (monthName.includes('-')) {
+        // Already in YYYY-MM format
+        monthForApi = monthName;
+      } else {
+        // Parse from "September 2024" format
+        const parts = monthName.split(' ');
+        if (parts.length >= 2) {
+          const monthStr = parts[0];
+          const year = parts[1];
+          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                             'July', 'August', 'September', 'October', 'November', 'December'];
+          const monthNumber = monthNames.indexOf(monthStr) + 1;
+          if (monthNumber > 0) {
+            monthForApi = `${year}-${monthNumber.toString().padStart(2, '0')}`;
+          }
+        }
+      }
+      
+      console.log('📅 Using month for API:', monthForApi);
+      console.log('🎯 Using API type:', apiLayerToUse);
+      
+      let apiResponse;
+      if (apiLayerToUse === 'NDVI') {
+        console.log('🌿 → Calling NDVI monthly API endpoint');
+        console.log('📤 NDVI API Payload:', { latitude: lat, longitude: lon, month: monthForApi });
+        apiResponse = await customAPI.ndviPointAnalysis({ longitude: lon, latitude: lat, month: monthForApi });
+        console.log('📥 NDVI API Response:', apiResponse);
+      } else if (apiLayerToUse === 'LST') {
+        console.log('🌡️ → Calling LST monthly API endpoint');
+        console.log('📤 LST API Payload:', { latitude: lat, longitude: lon, month: monthForApi });
+        apiResponse = await customAPI.lstPointAnalysis({ longitude: lon, latitude: lat, month: monthForApi });
+        console.log('📥 LST API Response:', apiResponse);
+      }
       
       return {
         coordinate: [lon, lat],
         value: pixelValue,
-        dataType: analysisLayer,
+        dataType: apiLayerToUse,
         month: monthData.month_name,
-        unit: analysisLayer === 'LST' ? '°C' : '',
+        unit: apiLayerToUse === 'LST' ? '°C' : '',
         visParams: monthData.vis_params,
-        mapId: extractMapIdFromTileUrl(monthData.tile_url)
+        mapId: extractMapIdFromTileUrl(monthData.tile_url),
+        apiResponse: apiResponse // Include API response
       };
     } catch (error) {
       console.error('Error getting pixel value:', error);
@@ -634,14 +715,74 @@ const EarthEngineDashboard = () => {
       console.log('🔍 Data type detected:', isPointData ? 'Point' : 'Polygon');
       
       let customResponse;
-      if (analysisLayer === 'NDVI') {
+      
+      // Determine which data type has loaded tiles
+      const ndviDataSource = aoiMode === 'draw' ? customNdviData : ndviData;
+      const lstDataSource = aoiMode === 'draw' ? customLstData : lstData;
+      
+      let hasNdviData = ndviDataSource && ndviDataSource.monthly_layers && ndviDataSource.monthly_layers[selectedMonth];
+      let hasLstData = lstDataSource && lstDataSource.monthly_layers && lstDataSource.monthly_layers[selectedMonth];
+      
+      // For draw mode, check monthly_statistics instead
+      if (aoiMode === 'draw') {
+        hasNdviData = ndviDataSource && ndviDataSource.monthly_statistics && ndviDataSource.monthly_statistics[selectedMonth];
+        hasLstData = lstDataSource && lstDataSource.monthly_statistics && lstDataSource.monthly_statistics[selectedMonth];
+      }
+      
+      console.log('🔍 Tile Data Check:');
+      console.log('   NDVI data available:', hasNdviData);
+      console.log('   LST data available:', hasLstData);
+      console.log('   Analysis Layer (UI):', analysisLayer);
+      
+      // Use the data type that actually has loaded tiles, or fall back to UI selection
+      let apiLayerToUse = analysisLayer;
+      if (hasLstData && !hasNdviData) {
+        apiLayerToUse = 'LST';
+        console.log('   → Using LST API (LST tiles loaded)');
+      } else if (hasNdviData && !hasLstData) {
+        apiLayerToUse = 'NDVI';
+        console.log('   → Using NDVI API (NDVI tiles loaded)');
+      } else {
+        console.log('   → Using', analysisLayer, 'API (UI selection)');
+      }
+      
+      if (apiLayerToUse === 'NDVI') {
         if (isPointData) {
           // For point data, coordinates is [longitude, latitude]
           const [longitude, latitude] = coordinates[0];
           
           if (aoiMode === 'default') {
             // Default rainforest mode: use monthly point API
-            customResponse = await customAPI.ndviPointAnalysis({ longitude, latitude, month: selectedMonth + 1 });
+            // Get the actual month from the loaded tile data
+            const currentData = ndviDataSource;
+            let monthForApi = selectedMonth + 1; // fallback
+            
+            if (currentData && currentData.monthly_layers && currentData.monthly_layers[selectedMonth]) {
+              const monthData = currentData.monthly_layers[selectedMonth];
+              const monthName = monthData.month_name;
+              
+              // Convert month name to YYYY-MM format
+              if (monthName.includes('-')) {
+                // Already in YYYY-MM format
+                monthForApi = monthName;
+              } else {
+                // Parse from "September 2024" format
+                const parts = monthName.split(' ');
+                if (parts.length >= 2) {
+                  const monthStr = parts[0];
+                  const year = parts[1];
+                  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                                     'July', 'August', 'September', 'October', 'November', 'December'];
+                  const monthNumber = monthNames.indexOf(monthStr) + 1;
+                  if (monthNumber > 0) {
+                    monthForApi = `${year}-${monthNumber.toString().padStart(2, '0')}`;
+                  }
+                }
+              }
+            }
+            
+            console.log('📅 Using month for NDVI API:', monthForApi);
+            customResponse = await customAPI.ndviPointAnalysis({ longitude, latitude, month: monthForApi });
             console.log('✅ Default NDVI Point API Response (monthly):', customResponse);
           } else {
             // Custom draw mode: use regular point API (same format as polygon)
@@ -672,7 +813,36 @@ const EarthEngineDashboard = () => {
           
           if (aoiMode === 'default') {
             // Default rainforest mode: use monthly point API
-            customResponse = await customAPI.lstPointAnalysis({ longitude, latitude, month: selectedMonth + 1 });
+            // Get the actual month from the loaded tile data
+            const currentData = lstDataSource;
+            let monthForApi = selectedMonth + 1; // fallback
+            
+            if (currentData && currentData.monthly_layers && currentData.monthly_layers[selectedMonth]) {
+              const monthData = currentData.monthly_layers[selectedMonth];
+              const monthName = monthData.month_name;
+              
+              // Convert month name to YYYY-MM format
+              if (monthName.includes('-')) {
+                // Already in YYYY-MM format
+                monthForApi = monthName;
+              } else {
+                // Parse from "September 2024" format
+                const parts = monthName.split(' ');
+                if (parts.length >= 2) {
+                  const monthStr = parts[0];
+                  const year = parts[1];
+                  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                                     'July', 'August', 'September', 'October', 'November', 'December'];
+                  const monthNumber = monthNames.indexOf(monthStr) + 1;
+                  if (monthNumber > 0) {
+                    monthForApi = `${year}-${monthNumber.toString().padStart(2, '0')}`;
+                  }
+                }
+              }
+            }
+            
+            console.log('📅 Using month for LST API:', monthForApi);
+            customResponse = await customAPI.lstPointAnalysis({ longitude, latitude, month: monthForApi });
             console.log('✅ Default LST Point API Response (monthly):', customResponse);
           } else {
             // Custom draw mode: use regular point API (same format as polygon)
