@@ -8,12 +8,155 @@ import VectorSource from 'ol/source/Vector';
 import XYZ from 'ol/source/XYZ';
 import Draw from 'ol/interaction/Draw';
 import { fromLonLat, toLonLat } from 'ol/proj';
-// import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 // import jsPDF from 'jspdf';
 // import html2canvas from 'html2canvas';
 // import Papa from 'papaparse';
 import 'ol/ol.css';
 import { amazonAPI, customAPI } from './src/services/api';
+
+// Statistics Chart Component
+const StatisticsChart = ({ data, dataType, selectedMonth, onMonthSelect }) => {
+  if (!data || data.length === 0) return null;
+
+  // Prepare data for the chart
+  const chartData = data.map((item, index) => ({
+    month: item.month_name.split(' ')[0], // Just the month name
+    mean: item.statistics.mean,
+    min: item.statistics.min,
+    max: item.statistics.max,
+    fullName: item.month_name,
+    isSelected: index === selectedMonth
+  }));
+
+  const getColor = (type) => {
+    if (dataType === 'NDVI') {
+      return {
+        mean: '#10b981', // green-500
+        min: '#ef4444',  // red-500
+        max: '#3b82f6'   // blue-500
+      };
+    } else {
+      return {
+        mean: '#f59e0b', // amber-500
+        min: '#06b6d4',  // cyan-500
+        max: '#dc2626'   // red-600
+      };
+    }
+  };
+
+  const colors = getColor(dataType);
+
+  return (
+    <div className="w-full">
+      {/* Chart Title */}
+      <div className="mb-4">
+        <h3 className="text-sm font-medium text-white mb-1">
+          {dataType} Statistics Over Time
+        </h3>
+        <p className="text-xs text-gray-400">
+          Click on bars to select different months
+        </p>
+      </div>
+
+      {/* Chart */}
+      <div className="h-64 mb-4">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+            <XAxis 
+              dataKey="month" 
+              stroke="#9ca3af"
+              fontSize={11}
+              tickFormatter={(value) => value.substring(0, 3)}
+            />
+            <YAxis 
+              stroke="#9ca3af"
+              fontSize={11}
+              domain={['dataMin - 0.1', 'dataMax + 0.1']}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: '#1f2937',
+                border: '1px solid #374151',
+                borderRadius: '8px',
+                color: '#fff'
+              }}
+              formatter={(value, name) => [
+                value.toFixed(4), 
+                name.charAt(0).toUpperCase() + name.slice(1)
+              ]}
+              labelFormatter={(label) => {
+                const item = chartData.find(d => d.month === label);
+                return item ? item.fullName : label;
+              }}
+            />
+            <Bar 
+              dataKey="mean" 
+              fill={colors.mean}
+              onClick={(data, index) => onMonthSelect(index)}
+              cursor="pointer"
+              opacity={0.8}
+            />
+            <Bar 
+              dataKey="min" 
+              fill={colors.min}
+              onClick={(data, index) => onMonthSelect(index)}
+              cursor="pointer"
+              opacity={0.6}
+            />
+            <Bar 
+              dataKey="max" 
+              fill={colors.max}
+              onClick={(data, index) => onMonthSelect(index)}
+              cursor="pointer"
+              opacity={0.6}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Legend */}
+      <div className="flex justify-center gap-4 text-xs">
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded" style={{ backgroundColor: colors.mean }}></div>
+          <span className="text-gray-300">Mean</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded" style={{ backgroundColor: colors.min }}></div>
+          <span className="text-gray-300">Min</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded" style={{ backgroundColor: colors.max }}></div>
+          <span className="text-gray-300">Max</span>
+        </div>
+      </div>
+
+      {/* Current Month Stats */}
+      {data[selectedMonth] && (
+        <div className="mt-4 bg-white/5 rounded-lg p-3">
+          <div className="text-sm font-medium text-white mb-2">
+            {data[selectedMonth].month_name} - {dataType} Statistics
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="text-center">
+              <div className="text-gray-400">Mean</div>
+              <div className="font-mono text-white">{data[selectedMonth].statistics.mean.toFixed(4)}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-gray-400">Min</div>
+              <div className="font-mono text-white">{data[selectedMonth].statistics.min.toFixed(4)}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-gray-400">Max</div>
+              <div className="font-mono text-white">{data[selectedMonth].statistics.max.toFixed(4)}</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const EarthEngineDashboard = () => {
   const [selectedArea, setSelectedArea] = useState('Amazon Rainforest (Brazil)');
@@ -87,6 +230,9 @@ const EarthEngineDashboard = () => {
   // Get month names from API data
   const getMonthNames = () => {
     const data = getCurrentData();
+    if (aoiMode === 'draw') {
+      return data?.monthly_statistics?.map(stat => stat.month_name) || [];
+    }
     return data?.monthly_layers?.map(layer => layer.month_name) || [];
   };
 
@@ -288,11 +434,11 @@ const EarthEngineDashboard = () => {
         
         if (customResponse) {
           console.log('📊 NDVI Data Summary:');
-          console.log('  - Legend:', customResponse.legend);
           console.log('  - Time Period:', customResponse.time_period);
-          console.log('  - Monthly Layers:', customResponse.monthly_layers?.length || 0, 'months');
-          if (customResponse.monthly_layers && customResponse.monthly_layers.length > 0) {
-            console.log('  - Sample Month Data:', customResponse.monthly_layers[0]);
+          console.log('  - Total Months:', customResponse.total_months);
+          console.log('  - Monthly Statistics:', customResponse.monthly_statistics?.length || 0, 'months');
+          if (customResponse.monthly_statistics && customResponse.monthly_statistics.length > 0) {
+            console.log('  - Sample Month Data:', customResponse.monthly_statistics[0]);
           }
         }
         
@@ -303,24 +449,20 @@ const EarthEngineDashboard = () => {
         
         if (customResponse) {
           console.log('🌡️ LST Data Summary:');
-          console.log('  - Legend:', customResponse.legend);
           console.log('  - Time Period:', customResponse.time_period);
-          console.log('  - Monthly Layers:', customResponse.monthly_layers?.length || 0, 'months');
-          if (customResponse.monthly_layers && customResponse.monthly_layers.length > 0) {
-            console.log('  - Sample Month Data:', customResponse.monthly_layers[0]);
+          console.log('  - Total Months:', customResponse.total_months);
+          console.log('  - Monthly Statistics:', customResponse.monthly_statistics?.length || 0, 'months');
+          if (customResponse.monthly_statistics && customResponse.monthly_statistics.length > 0) {
+            console.log('  - Sample Month Data:', customResponse.monthly_statistics[0]);
           }
         }
         
         setCustomLstData(customResponse);
       }
       
-      // Update map layer with the new custom data
-      if (customResponse) {
-        console.log('🗺️ Updating map layer with custom data for:', analysisLayer);
-        // Add small delay for smoother visual transition
-        setTimeout(() => {
-          updateMapLayer(customResponse, selectedMonth, true);
-        }, 150);
+      // Data received - chart will be rendered automatically by useEffect
+      if (customResponse && customResponse.monthly_statistics) {
+        console.log('📊 Statistics data received for', analysisLayer, '- chart will be displayed');
       }
       
       console.log('🎉 Custom', analysisLayer, 'data fetch completed successfully!');
@@ -348,12 +490,24 @@ const EarthEngineDashboard = () => {
   }, [aoiMode, analysisLayer]);
 
   const updateMapLayer = (data, monthIndex, smooth = true) => {
-    if (!mapInstanceRef.current || !data || !data.monthly_layers[monthIndex]) {
+    if (!mapInstanceRef.current || !data || !data.monthly_layers || !data.monthly_layers[monthIndex]) {
+      console.log('❌ updateMapLayer failed - missing data:', {
+        hasMap: !!mapInstanceRef.current,
+        hasData: !!data,
+        hasMonthlyLayers: !!(data && data.monthly_layers),
+        monthIndex,
+        maxMonths: data?.monthly_layers?.length || 0
+      });
       return;
     }
 
     const monthData = data.monthly_layers[monthIndex];
-    console.log('Updating map layer with data:', monthData.month_name);
+    console.log('🗺️ Updating map layer with data:', {
+      monthName: monthData.month_name,
+      tileUrl: monthData.tile_url,
+      dataType: monthData.data_type,
+      smooth
+    });
     
     const newTileLayer = new TileLayer({
       source: new XYZ({
@@ -556,14 +710,14 @@ const EarthEngineDashboard = () => {
         return;
       }
       updateMapLayer(data, selectedMonth);
-    } else if (data && aoiMode === 'draw' && (customNdviData || customLstData)) {
-      // Update layer for custom data
-      const maxMonths = data.monthly_layers?.length || 0;
+    } else if (data && aoiMode === 'draw') {
+      // For custom data, just handle month selection bounds - no tiles to render
+      const maxMonths = data.monthly_statistics?.length || 0;
       if (selectedMonth >= maxMonths) {
         setSelectedMonth(0);
         return;
       }
-      updateMapLayer(data, selectedMonth);
+      console.log('📊 Custom data available for month:', selectedMonth, data.monthly_statistics[selectedMonth]?.month_name);
     } else if (aoiMode === 'draw' && !data && pendingPolygonCoords && drawnFeatures.length > 0) {
       // If switching analysis type in draw mode and data is missing, fetch it
       console.log('⚡ Analysis layer switched to', analysisLayer, '- fetching missing data');
@@ -573,12 +727,14 @@ const EarthEngineDashboard = () => {
   
   // Handle analysis layer switching in custom mode
   useEffect(() => {
-    if (aoiMode === 'draw' && drawnFeatures.length > 0 && pendingPolygonCoords) {
-      const needsData = analysisLayer === 'NDVI' ? !customNdviData : !customLstData;
-      if (needsData && !customLoading) {
-        console.log('🔄 Switching to', analysisLayer, '- need to fetch data');
+    if (aoiMode === 'draw' && drawnFeatures.length > 0) {
+      // Since we fetch both NDVI and LST concurrently, we only need to check if any data exists
+      const hasData = customNdviData || customLstData;
+      if (!hasData && pendingPolygonCoords && !customLoading) {
+        console.log('🔄 No data available - showing analysis button');
         setShowAnalysisButton(true);
-      } else if (!needsData) {
+      } else if (hasData) {
+        console.log('✅ Data available for both NDVI and LST - hiding analysis button');
         setShowAnalysisButton(false);
       }
     }
@@ -644,6 +800,25 @@ const EarthEngineDashboard = () => {
       const geometry = feature.getGeometry();
       const coordinates = geometry.getCoordinates();
       
+      // Convert coordinates from map projection to WGS84 (longitude/latitude)
+      const wgs84Coordinates = coordinates[0].map(coord => toLonLat(coord));
+      
+      // Close the polygon by ensuring first and last points are the same
+      if (wgs84Coordinates.length > 0) {
+        const firstPoint = wgs84Coordinates[0];
+        const lastPoint = wgs84Coordinates[wgs84Coordinates.length - 1];
+        if (firstPoint[0] !== lastPoint[0] || firstPoint[1] !== lastPoint[1]) {
+          wgs84Coordinates.push([...firstPoint]);
+        }
+      }
+      
+      console.log('🌍 Converted coordinates to WGS84:', {
+        originalLength: coordinates[0].length,
+        wgs84Length: wgs84Coordinates.length,
+        firstPoint: wgs84Coordinates[0],
+        lastPoint: wgs84Coordinates[wgs84Coordinates.length - 1]
+      });
+      
       // Clear previous drawings before adding new one
       if (drawnFeatures.length > 0) {
         clearDrawings();
@@ -652,7 +827,7 @@ const EarthEngineDashboard = () => {
       const newFeature = {
         id: Date.now(),
         type: mode,
-        geometry: coordinates,
+        geometry: coordinates, // Keep original for display
         bounds: geometry.getExtent()
       };
       
@@ -660,8 +835,8 @@ const EarthEngineDashboard = () => {
       setDrawingMode(null);
       mapInstanceRef.current.removeInteraction(drawInteractionRef.current);
       
-      // Store coordinates and show analysis button instead of auto-fetching
-      setPendingPolygonCoords(coordinates);
+      // Store WGS84 coordinates for API calls
+      setPendingPolygonCoords([wgs84Coordinates]); // Wrap in array to match expected format
       setShowAnalysisButton(true);
       console.log('🎯 Polygon drawn successfully. Ready for analysis.');
     });
@@ -677,10 +852,10 @@ const EarthEngineDashboard = () => {
     setDrawnFeatures([]);
     setShowAnalysisButton(false);
     setPendingPolygonCoords(null);
-    // Clear custom data when clearing drawings
+    // Only clear custom data when clearing drawings (keep Amazon data intact)
     setCustomNdviData(null);
     setCustomLstData(null);
-    // Remove any existing analysis layer
+    // Remove only custom analysis layers (not Amazon layers)
     if (currentLayer && aoiMode === 'draw') {
       mapInstanceRef.current.removeLayer(currentLayer);
       setCurrentLayer(null);
@@ -720,20 +895,25 @@ const EarthEngineDashboard = () => {
         }
       }
     } else if (mode === 'draw') {
-      // Clear drawn features and remove analysis layer for clean drawing
-      clearDrawings();
-      // Clear any existing custom data
+      // Clear only drawn features and custom data (keep Amazon data)
+      if (vectorSourceRef.current) {
+        vectorSourceRef.current.clear();
+      }
+      setDrawnFeatures([]);
+      setShowAnalysisButton(false);
+      setPendingPolygonCoords(null);
+      // Clear only custom data (keep Amazon data intact for when returning to default mode)
       setCustomNdviData(null);
       setCustomLstData(null);
-      // Clear Amazon data to prevent any interference
-      setNdviData(null);
-      setLstData(null);
+      
       if (mapInstanceRef.current) {
-        // Remove current analysis layer for clean drawing
+        // Remove only the current analysis layer (Amazon or custom)
         if (currentLayer) {
+          console.log('🗑️ Removing current analysis layer for clean drawing');
           mapInstanceRef.current.removeLayer(currentLayer);
           setCurrentLayer(null);
         }
+        
         // Zoom to very high level for precise drawing
         const view = mapInstanceRef.current.getView();
         view.animate({
@@ -741,7 +921,7 @@ const EarthEngineDashboard = () => {
           duration: 1000
         });
       }
-      console.log('🧹 Cleared all existing Amazon and custom data for clean drawing mode');
+      console.log('🎯 Cleared custom data and layers, keeping Amazon data for later use');
       // Automatically activate drawing mode
       setTimeout(() => {
         toggleDrawingMode('polygon');
@@ -1087,6 +1267,27 @@ const EarthEngineDashboard = () => {
             </div>
           </div>
 
+          {/* Statistics Chart for Custom Data */}
+          {aoiMode === 'draw' && getCurrentData() && getCurrentData().monthly_statistics && (
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-medium text-gray-300">Statistics Overview</label>
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-blue-400" />
+                  <span className="text-xs text-blue-400">{analysisLayer} Data</span>
+                </div>
+              </div>
+              <div className="bg-black/20 border border-white/10 rounded-xl p-4">
+                <StatisticsChart 
+                  data={getCurrentData().monthly_statistics}
+                  dataType={analysisLayer}
+                  selectedMonth={selectedMonth}
+                  onMonthSelect={setSelectedMonth}
+                />
+              </div>
+            </div>
+          )}
+
         </div>
 
         {/* Query Button */}
@@ -1270,19 +1471,6 @@ const EarthEngineDashboard = () => {
             </div>
           )}
           
-          {/* Layer Switching Overlay */}
-          {isLayerSwitching && (
-            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-15">
-              <div className="bg-white/10 backdrop-blur-xl rounded-xl p-6 border border-white/20 shadow-2xl">
-                <div className="flex items-center gap-3">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400"></div>
-                  <div className="text-white">
-                    <div className="font-medium text-sm">Switching to {analysisLayer}...</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
           
           {/* Legend Panel - Right Side */}
           <div className="absolute top-24 right-4 z-20">
