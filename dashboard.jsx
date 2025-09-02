@@ -725,6 +725,9 @@ const EarthEngineDashboard = () => {
       // Clear any existing custom data
       setCustomNdviData(null);
       setCustomLstData(null);
+      // Clear Amazon data to prevent any interference
+      setNdviData(null);
+      setLstData(null);
       if (mapInstanceRef.current) {
         // Remove current analysis layer for clean drawing
         if (currentLayer) {
@@ -738,6 +741,7 @@ const EarthEngineDashboard = () => {
           duration: 1000
         });
       }
+      console.log('🧹 Cleared all existing Amazon and custom data for clean drawing mode');
       // Automatically activate drawing mode
       setTimeout(() => {
         toggleDrawingMode('polygon');
