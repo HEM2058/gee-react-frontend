@@ -91,8 +91,8 @@ const MonthlyPointDataPopup = ({ data, analysisLayer, coordinates, loading, onCl
   if (!data && !loading) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 border border-gray-600 rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto">
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
@@ -108,7 +108,7 @@ const MonthlyPointDataPopup = ({ data, analysisLayer, coordinates, loading, onCl
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+              className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors"
             >
               <X className="w-5 h-5 text-white" />
             </button>
@@ -165,7 +165,7 @@ const MonthlyPointDataPopup = ({ data, analysisLayer, coordinates, loading, onCl
               {data.additional_info && (
                 <div className="bg-gray-800/50 rounded-lg p-4">
                   <h4 className="text-sm font-medium text-white mb-3">Additional Information</h4>
-                  <pre className="text-xs text-gray-300 bg-black/30 p-3 rounded overflow-x-auto">
+                  <pre className="text-xs text-gray-300 bg-gray-800 p-3 rounded overflow-x-auto">
                     {JSON.stringify(data.additional_info, null, 2)}
                   </pre>
                 </div>
@@ -251,7 +251,7 @@ const StatisticsPopup = ({ ndviData, lstData, selectedMonth, onMonthSelect, onCl
 
   return (
     <div className="absolute bottom-4 left-4 right-4 z-40 flex items-end justify-center">
-      <div className="bg-black/90 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[70vh] overflow-auto">
+      <div className="bg-gray-900 border border-gray-600 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[70vh] overflow-auto">
         {/* Header */}
         <div className="p-6 border-b border-white/10 flex items-center justify-between">
           <div>
@@ -260,7 +260,7 @@ const StatisticsPopup = ({ ndviData, lstData, selectedMonth, onMonthSelect, onCl
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors text-xl p-2 rounded-lg hover:bg-white/10"
+            className="text-gray-400 hover:text-white transition-colors text-xl p-2 rounded-lg hover:bg-gray-700"
           >
             ×
           </button>
@@ -430,6 +430,7 @@ const EarthEngineDashboard = () => {
   const [monthlyPointData, setMonthlyPointData] = useState(null);
   const [monthlyPointLoading, setMonthlyPointLoading] = useState(false);
   const [clickedPointCoordinates, setClickedPointCoordinates] = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Start open on mobile
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const vectorSourceRef = useRef(null);
@@ -1799,6 +1800,18 @@ const EarthEngineDashboard = () => {
   
   // Export functionality disabled
   
+  // Toggle sidebar function with map resize
+  const toggleSidebar = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+    
+    // Trigger map resize after sidebar animation completes
+    setTimeout(() => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.updateSize();
+        console.log('🗺️ Map resized after sidebar toggle');
+      }
+    }, 300); // Match CSS transition duration
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col lg:flex-row relative overflow-hidden">
@@ -1810,20 +1823,54 @@ const EarthEngineDashboard = () => {
         }}></div>
       </div>
       
+      {/* Mobile Sidebar Toggle Button - Hidden when sidebar is open */}
+      {sidebarCollapsed && (
+        <button
+          onClick={toggleSidebar}
+          className="lg:hidden fixed top-4 left-4 z-50 bg-gray-800 border border-gray-600 rounded-xl p-3 shadow-lg hover:bg-gray-700 transition-all duration-300"
+          aria-label="Toggle sidebar"
+        >
+          {/* 3 Dots Icon */}
+          <div className="flex flex-col space-y-1">
+            <div className="w-1 h-1 bg-white rounded-full"></div>
+            <div className="w-1 h-1 bg-white rounded-full"></div>
+            <div className="w-1 h-1 bg-white rounded-full"></div>
+          </div>
+        </button>
+      )}
+
       {/* Modern Sidebar */}
-      <div className="w-full lg:w-80 bg-black/20 backdrop-blur-xl border-b lg:border-b-0 lg:border-r border-white/10 flex flex-col relative z-10 max-h-64 lg:max-h-none overflow-y-auto lg:overflow-visible">
+      <div className={`
+        fixed lg:relative inset-y-0 left-0 z-40
+        w-80 lg:w-80 
+        bg-gray-900 border-r border-gray-600 
+        flex flex-col 
+        transform transition-transform duration-300 ease-in-out lg:translate-x-0
+        ${sidebarCollapsed ? '-translate-x-full' : 'translate-x-0'}
+        lg:max-h-none overflow-y-auto lg:overflow-visible
+      `}>
         {/* Modern Header */}
-        <div className="p-3 lg:p-6 border-b border-white/10 bg-gradient-to-r from-blue-600/10 to-purple-600/10 backdrop-blur-sm">
-          <div className="flex items-center gap-2 lg:gap-3 mb-2">
-            <div className="p-1 lg:p-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 shadow-lg">
+        <div className="p-3 lg:p-6 border-b border-gray-600 bg-gradient-to-r from-blue-600 to-purple-600">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 lg:gap-3">
+              <div className="p-1 lg:p-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 shadow-lg">
               <Globe className="w-4 lg:w-6 h-4 lg:h-6 text-white" />
             </div>
             <div>
               <h1 className="text-sm lg:text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                 Rainforest Analyser
               </h1>
-            
+              </div>
             </div>
+            
+            {/* Mobile Close Button */}
+            <button
+              onClick={toggleSidebar}
+              className="lg:hidden p-2 rounded-lg hover:bg-gray-700 transition-colors"
+              aria-label="Close sidebar"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
           </div>
         </div>
 
@@ -1856,8 +1903,8 @@ const EarthEngineDashboard = () => {
                       isActive
                         ? 'bg-blue-600 text-white shadow-lg scale-105'
                         : canSwitch
-                        ? 'bg-white/5 text-gray-300 hover:bg-white/10 hover:scale-102 backdrop-blur-sm'
-                        : 'bg-white/5 text-gray-500 cursor-not-allowed backdrop-blur-sm'
+                        ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 hover:scale-102'
+                        : 'bg-gray-800 text-gray-500 cursor-not-allowed'
                     } ${
                       isLayerSwitching && !isActive ? 'animate-pulse' : ''
                     }`}
@@ -1888,7 +1935,7 @@ const EarthEngineDashboard = () => {
                 className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-300 ${
                   aoiMode === 'default'
                     ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
-                    : 'bg-white/5 text-gray-300 hover:bg-white/10 backdrop-blur-sm'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                 }`}
               >
                 🌳 Rainforest
@@ -1898,7 +1945,7 @@ const EarthEngineDashboard = () => {
                 className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-300 ${
                   aoiMode === 'draw'
                     ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
-                    : 'bg-white/5 text-gray-300 hover:bg-white/10 backdrop-blur-sm'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                 }`}
               >
                 ✏️ {aoiMode === 'draw' && drawingMode === 'polygon' ? 'Drawing Polygon...' : 'Draw Custom'}
@@ -2071,7 +2118,7 @@ const EarthEngineDashboard = () => {
                     <div className="flex items-center justify-center gap-2">
                       <button
                         onClick={() => setShowStatsPopup(true)}
-                        className="p-1 rounded bg-gradient-to-r from-green-500/20 to-orange-500/20 hover:from-green-500/30 hover:to-orange-500/30 backdrop-blur-sm transition-all duration-300 hover:scale-105 shadow-lg border border-white/20"
+                        className="p-1 rounded bg-gray-800 hover:bg-gray-700 transition-all duration-300 hover:scale-105 shadow-lg border border-gray-600"
                         title="View Statistics Overview"
                       >
                         <BarChart3 className="w-3 h-3 text-white" />
@@ -2125,7 +2172,7 @@ const EarthEngineDashboard = () => {
                 <button
                   onClick={() => setSelectedMonth(Math.max(0, selectedMonth - 1))}
                   disabled={selectedMonth === 0 || loading || !getCurrentData()}
-                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 backdrop-blur-sm"
+                  className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -2144,7 +2191,7 @@ const EarthEngineDashboard = () => {
                 <button
                   onClick={() => setSelectedMonth(Math.min(getMonthNames().length - 1, selectedMonth + 1))}
                   disabled={selectedMonth >= (getMonthNames().length - 1) || loading || !getCurrentData()}
-                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 backdrop-blur-sm"
+                  className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -2162,8 +2209,8 @@ const EarthEngineDashboard = () => {
                     className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-300 ${
                       selectedMonth === index
                         ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg shadow-blue-500/25'
-                        : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-300'
-                    } backdrop-blur-sm`}
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300'
+                    }`}
                   >
                     {monthShort}
                   </button>
@@ -2177,7 +2224,7 @@ const EarthEngineDashboard = () => {
                 <span>{getMonthNames()[0]?.split(' ')[0]?.substring(0, 3) || 'Start'}</span>
                 <span>{getMonthNames()[getMonthNames().length - 1]?.split(' ')[0]?.substring(0, 3) || 'End'}</span>
               </div>
-              <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+              <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500 ease-out"
                   style={{ width: `${((selectedMonth + 1) / (getMonthNames().length || 12)) * 100}%` }}
@@ -2211,9 +2258,9 @@ const EarthEngineDashboard = () => {
         
         {/* Floating Top Bar - Hidden on Mobile */}
         <div className="hidden md:block absolute top-4 left-4 right-4 z-20">
-          <div className="bg-black/20 backdrop-blur-xl border border-white/10 rounded-2xl p-2 md:p-4 flex items-center justify-between shadow-2xl">
+          <div className="bg-gray-900 border border-gray-600 rounded-2xl p-2 md:p-4 flex items-center justify-between shadow-lg">
             <div className="flex items-center gap-2 md:gap-3">
-              <div className="p-1 md:p-2 rounded-lg bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-sm">
+              <div className="p-1 md:p-2 rounded-lg bg-gradient-to-r from-blue-500/10 to-purple-500/10">
                 <Layers className="w-4 h-4 md:w-5 md:h-5 text-blue-400" />
               </div>
               <div className="hidden md:block">
@@ -2229,7 +2276,7 @@ const EarthEngineDashboard = () => {
             <div className="flex items-center gap-1 md:gap-2">
               {/* Search Bar */}
               <div className="relative">
-                <div className="flex items-center bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 px-2 py-1 md:px-3 md:py-2">
+                <div className="flex items-center bg-gray-700 rounded-xl border border-gray-600 px-2 py-1 md:px-3 md:py-2">
                   <input
                     type="text"
                     placeholder="Search location..."
@@ -2270,12 +2317,12 @@ const EarthEngineDashboard = () => {
                 
                 {/* Search Results Dropdown */}
                 {showSearchResults && searchResults.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-black/80 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto">
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-gray-600 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto">
                     {searchResults.map((result, index) => (
                       <button
                         key={index}
                         onClick={() => selectSearchResult(result)}
-                        className="w-full px-3 py-2 text-left hover:bg-white/10 transition-colors border-b border-white/10 last:border-b-0"
+                        className="w-full px-3 py-2 text-left hover:bg-gray-700 transition-colors border-b border-gray-600 last:border-b-0"
                       >
                         <div className="text-xs text-white truncate">
                           {result.display_name.split(',')[0]}
@@ -2290,7 +2337,7 @@ const EarthEngineDashboard = () => {
               </div>
               
               {/* Basemap Toggle */}
-              <div className="flex bg-white/10 backdrop-blur-sm rounded-xl p-1 border border-white/20">
+              <div className="flex bg-gray-700 rounded-xl p-1 border border-gray-600">
                 {Object.entries(basemaps).map(([key, config]) => (
                   <button
                     key={key}
@@ -2298,7 +2345,7 @@ const EarthEngineDashboard = () => {
                     className={`px-2 py-1 md:px-3 md:py-2 rounded-lg text-xs font-medium transition-all duration-300 ${
                       basemap === key
                         ? 'bg-white text-gray-900 shadow-lg'
-                        : 'text-white hover:bg-white/20'
+                        : 'text-white hover:bg-gray-600'
                     }`}
                   >
                     {key === 'satellite' ? 'Satellite' : 'Street'}
@@ -2308,13 +2355,13 @@ const EarthEngineDashboard = () => {
               
               <button 
                 onClick={handleZoomIn}
-                className="p-2 md:p-3 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-sm transition-all duration-300 shadow-lg"
+                className="p-2 md:p-3 rounded-xl bg-gray-800 hover:bg-gray-700 transition-all duration-300 shadow-lg"
               >
                 <ZoomIn className="w-3 h-3 md:w-4 md:h-4 text-white" />
               </button>
               <button 
                 onClick={handleZoomOut}
-                className="p-2 md:p-3 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-sm transition-all duration-300 shadow-lg"
+                className="p-2 md:p-3 rounded-xl bg-gray-800 hover:bg-gray-700 transition-all duration-300 shadow-lg"
               >
                 <ZoomOut className="w-3 h-3 md:w-4 md:h-4 text-white" />
               </button>
@@ -2322,8 +2369,8 @@ const EarthEngineDashboard = () => {
               {chartData.length > 0 && (
                 <button
                   onClick={() => setShowChart(!showChart)}
-                  className={`p-3 rounded-xl backdrop-blur-sm transition-all duration-300 hover:scale-105 shadow-lg ${
-                    showChart ? 'bg-blue-500 text-white' : 'bg-white/10 hover:bg-white/20 text-white'
+                  className={`p-3 rounded-xl transition-all duration-300 hover:scale-105 shadow-lg ${
+                    showChart ? 'bg-blue-500 text-white' : 'bg-gray-800 hover:bg-gray-700 text-white'
                   }`}
                   title="Toggle Time Series Chart"
                 >
@@ -2338,7 +2385,7 @@ const EarthEngineDashboard = () => {
         <div className="md:hidden absolute top-4 right-4 z-20">
           <div className="flex gap-2">
             {/* Basemap Toggle */}
-            <div className="flex bg-black/20 backdrop-blur-xl border border-white/10 rounded-xl p-1">
+            <div className="flex bg-gray-900 border border-gray-600 rounded-xl p-1">
               {Object.entries(basemaps).map(([key, config]) => (
                 <button
                   key={key}
@@ -2346,7 +2393,7 @@ const EarthEngineDashboard = () => {
                   className={`px-2 py-1 rounded-lg text-xs font-medium transition-all duration-300 ${
                     basemap === key
                       ? 'bg-white text-gray-900 shadow-lg'
-                      : 'text-white hover:bg-white/20'
+                      : 'text-white hover:bg-gray-700'
                   }`}
                 >
                   {key === 'satellite' ? 'Satellite' : 'Street'}
@@ -2355,6 +2402,14 @@ const EarthEngineDashboard = () => {
             </div>
           </div>
         </div>
+
+        {/* Mobile Overlay - appears when sidebar is open */}
+        {!sidebarCollapsed && (
+          <div 
+            className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
+            onClick={toggleSidebar}
+          />
+        )}
 
         {/* Map Container */}
         <div className="flex-1 relative overflow-hidden">
@@ -2370,8 +2425,8 @@ const EarthEngineDashboard = () => {
           
           {/* Loading Overlay */}
           {((loading && aoiMode === 'default') || (customLoading && aoiMode === 'draw')) && (
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-10">
-              <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-8 border border-white/20 shadow-2xl">
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+              <div className="bg-gray-900 rounded-2xl p-8 border border-gray-600 shadow-2xl">
                 <div className="flex items-center gap-4">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
                   <div className="text-white">
@@ -2391,7 +2446,7 @@ const EarthEngineDashboard = () => {
           {/* Legend Panel - Right Side - Show on mobile only when tiles loaded */}
           <div className={`absolute top-24 right-4 z-20 ${(ndviData || lstData) ? 'block' : 'hidden md:block'}`}>
             {loading ? (
-              <div className="bg-black/20 backdrop-blur-xl border border-white/10 rounded-xl p-4 shadow-2xl">
+              <div className="bg-gray-900 border border-gray-600 rounded-xl p-4 shadow-2xl">
                 <div className="flex items-center gap-3">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
                   <div className="text-sm text-gray-300">Loading legend...</div>
@@ -2400,7 +2455,7 @@ const EarthEngineDashboard = () => {
             ) : (
               <>
                 {analysisLayer === 'NDVI' && ndviData && (
-                  <div className="bg-black/20 backdrop-blur-xl border border-white/10 rounded-xl p-4 shadow-2xl max-w-xs">
+                  <div className="bg-gray-900 border border-gray-600 rounded-xl p-4 shadow-2xl max-w-xs">
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-3 h-3 rounded-full bg-green-400 shadow-lg shadow-green-400/50"></div>
                       <h3 className="text-sm font-semibold text-white">{ndviData.legend.title}</h3>
@@ -2431,7 +2486,7 @@ const EarthEngineDashboard = () => {
                 )}
                 
                 {analysisLayer === 'LST' && lstData && (
-                  <div className="bg-black/20 backdrop-blur-xl border border-white/10 rounded-xl p-4 shadow-2xl max-w-xs">
+                  <div className="bg-gray-900 border border-gray-600 rounded-xl p-4 shadow-2xl max-w-xs">
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-3 h-3 rounded-full bg-orange-400 shadow-lg shadow-orange-400/50"></div>
                       <h3 className="text-sm font-semibold text-white">{lstData.legend.title}</h3>
@@ -2469,8 +2524,8 @@ const EarthEngineDashboard = () => {
 
           {/* Time Series Chart Overlay */}
           {showChart && chartData.length > 0 && (
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-30 flex items-center justify-center p-4">
-              <div className="bg-black/80 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-auto">
+            <div className="absolute inset-0 bg-black/50 z-30 flex items-center justify-center p-4">
+              <div className="bg-gray-900 border border-gray-600 rounded-2xl p-6 shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-auto">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-white">
                     {analysisLayer} Time Series
@@ -2519,7 +2574,7 @@ const EarthEngineDashboard = () => {
                 transform: 'translateY(-100%)'
               }}
             >
-              <div className="bg-black/80 backdrop-blur-xl border border-white/20 rounded-xl p-4 shadow-2xl min-w-[200px]">
+              <div className="bg-gray-900 border border-gray-600 rounded-xl p-4 shadow-2xl min-w-[200px]">
                 {pixelLoading ? (
                   <div className="flex items-center gap-3">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
@@ -2611,7 +2666,7 @@ const EarthEngineDashboard = () => {
               
               {/* Arrow pointing to clicked location */}
               <div 
-                className="absolute top-full left-6 w-3 h-3 bg-black/80 border-r border-b border-white/20 transform rotate-45"
+                className="absolute top-full left-6 w-3 h-3 bg-gray-900 border-r border-b border-gray-600 transform rotate-45"
                 style={{ marginTop: '-6px' }}
               ></div>
             </div>
