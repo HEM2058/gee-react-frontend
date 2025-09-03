@@ -2025,14 +2025,14 @@ const EarthEngineDashboard = () => {
       {/* Modern Main Content Area */}
       <div className="flex-1 flex flex-col relative">
         
-        {/* Floating Top Bar */}
-        <div className="absolute top-4 left-4 right-4 z-20">
+        {/* Floating Top Bar - Hidden on Mobile */}
+        <div className="hidden md:block absolute top-4 left-4 right-4 z-20">
           <div className="bg-black/20 backdrop-blur-xl border border-white/10 rounded-2xl p-2 md:p-4 flex items-center justify-between shadow-2xl">
             <div className="flex items-center gap-2 md:gap-3">
               <div className="p-1 md:p-2 rounded-lg bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-sm">
                 <Layers className="w-4 h-4 md:w-5 md:h-5 text-blue-400" />
               </div>
-              <div>
+              <div className="hidden md:block">
                 <span className="text-white font-medium text-sm md:text-base">Amazon rainforest (Brazil)</span>
                 <div className="text-xs text-gray-300">
                   {analysisLayer} • {getMonthNames()[selectedMonth] || 'Loading...'}
@@ -2150,6 +2150,28 @@ const EarthEngineDashboard = () => {
           </div>
         </div>
 
+        {/* Mobile-Only Simple Navigation */}
+        <div className="md:hidden absolute top-4 right-4 z-20">
+          <div className="flex gap-2">
+            {/* Basemap Toggle */}
+            <div className="flex bg-black/20 backdrop-blur-xl border border-white/10 rounded-xl p-1">
+              {Object.entries(basemaps).map(([key, config]) => (
+                <button
+                  key={key}
+                  onClick={() => switchBaseLayer(key)}
+                  className={`px-2 py-1 rounded-lg text-xs font-medium transition-all duration-300 ${
+                    basemap === key
+                      ? 'bg-white text-gray-900 shadow-lg'
+                      : 'text-white hover:bg-white/20'
+                  }`}
+                >
+                  {key === 'satellite' ? 'Satellite' : 'Street'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* Map Container */}
         <div className="flex-1 relative overflow-hidden">
           <div 
@@ -2182,8 +2204,8 @@ const EarthEngineDashboard = () => {
           )}
           
           
-          {/* Legend Panel - Right Side */}
-          <div className="absolute top-24 right-4 z-20">
+          {/* Legend Panel - Right Side - Show on mobile only when tiles loaded */}
+          <div className={`absolute top-24 right-4 z-20 ${(ndviData || lstData) ? 'block' : 'hidden md:block'}`}>
             {loading ? (
               <div className="bg-black/20 backdrop-blur-xl border border-white/10 rounded-xl p-4 shadow-2xl">
                 <div className="flex items-center gap-3">
