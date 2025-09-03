@@ -1299,21 +1299,100 @@ const EarthEngineDashboard = () => {
       let clickListenerKey = null;
       
       setTimeout(() => {
-        console.log('🔧 Attempting to add click listener to map:', map);
-        console.log('🔧 Map container:', map.getTargetElement());
-        clickListenerKey = map.on('singleclick', clickHandler);
-        console.log('✅ Single click event listener added to map after render');
-        console.log('🔧 Click listener key:', clickListenerKey);
+        console.log('🔧 Production build detected - using DOM-based click handling');
         
-        // Add backup DOM click listener for debugging
+        // Production-compatible click handler using DOM events
         const mapElement = map.getTargetElement();
         if (mapElement) {
+          let clickTimeout = null;
+          
           mapElement.addEventListener('click', (domEvent) => {
-            console.log('🔧 FALLBACK: DOM click detected on map element!', domEvent);
+            // Prevent multiple rapid clicks
+            if (clickTimeout) {
+              clearTimeout(clickTimeout);
+            }
+            
+            clickTimeout = setTimeout(() => {
+              console.log('🔧 Production click detected:', domEvent);
+              
+              // Get the pixel coordinates relative to the map viewport
+              const rect = mapElement.getBoundingClientRect();
+              const pixel = [
+                domEvent.clientX - rect.left,
+                domEvent.clientY - rect.top
+              ];
+              
+              console.log('🔧 Pixel coordinates:', pixel);
+              
+              // Convert to map coordinates
+              const coordinate = map.getCoordinateFromPixel(pixel);
+              console.log('🔧 Map coordinate:', coordinate);
+              
+              if (coordinate) {
+                // Call the click handler directly with production-compatible data
+                handleProductionClick(coordinate, pixel, domEvent);
+              } else {
+                console.warn('🔧 Could not convert pixel to coordinate');
+              }
+            }, 300); // Same debounce as original
           });
-          console.log('🔧 Added fallback DOM click listener');
+          
+          console.log('✅ Production click handler attached');
         }
       }, 200);
+      
+      // Production-compatible click handler
+      const handleProductionClick = async (coordinate, pixel, domEvent) => {
+        try {
+          console.log('🔥 Production click processing started');
+          closeSearchResults();
+          
+          const [lon, lat] = toLonLat(coordinate);
+          console.log('Converted lon/lat:', lon, lat);
+          console.log('Current AOI mode:', aoiMode);
+          console.log('Current analysis layer:', analysisLayer);
+          
+          setClickPosition([pixel[0], pixel[1]]);
+          
+          // In default mode, call monthly point analysis API
+          if (aoiMode === 'default') {
+            console.log('🎯 Default mode: Calling monthly point analysis API');
+            await fetchMonthlyPointData(lon, lat);
+            return;
+          }
+          
+          // Custom mode logic for pixel data
+          setPixelLoading(true);
+          setPixelInfo(null);
+          
+          try {
+            const data = analysisLayer === 'NDVI' ? ndviData : lstData;
+            console.log('Current data:', data);
+            
+            if (!data || !data.monthly_layers[selectedMonth]) {
+              console.log('❌ No data available for pixel query');
+              alert('No data available for the selected month. Please select a different month.');
+              return;
+            }
+            
+            const pixelData = await getPixelValue([lon, lat]);
+            console.log('Final pixel data:', pixelData);
+            setPixelInfo(pixelData);
+            setSelectedCoordinate([lon, lat]);
+            
+            const timeSeriesData = generateTimeSeriesData([lon, lat]);
+            setChartData(timeSeriesData);
+          } catch (error) {
+            console.error('❌ Error handling click:', error);
+            alert('Unable to get data for this location. Please try again.');
+          } finally {
+            setPixelLoading(false);
+          }
+        } catch (error) {
+          console.error('❌ Production click handler error:', error);
+          alert('An error occurred. Please refresh and try again.');
+        }
+      };
       
       window.addEventListener('resize', updateSize);
       
