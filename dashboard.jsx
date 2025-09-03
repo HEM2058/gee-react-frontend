@@ -727,10 +727,19 @@ const EarthEngineDashboard = () => {
       // Update map layer with the new data
       if (response) {
         console.log('🗺️ Updating map layer with Amazon data for:', analysisLayer);
-        // Add small delay for smoother visual transition
-        setTimeout(() => {
-          updateMapLayer(response, selectedMonth, true);
-        }, 150);
+        // Ensure map is ready before updating layer
+        const waitForMapAndUpdate = () => {
+          if (mapInstanceRef.current && mapInstanceRef.current.getTargetElement()) {
+            console.log('✅ Map is ready - updating initial layer');
+            updateMapLayer(response, selectedMonth, false); // No smooth transition for initial load
+          } else {
+            console.log('⏳ Map not ready yet, retrying...');
+            setTimeout(waitForMapAndUpdate, 100);
+          }
+        };
+        
+        // Start checking immediately, then with small delay as fallback
+        waitForMapAndUpdate();
       }
       
       console.log('🎉 Amazon', analysisLayer, 'data fetch completed successfully!');
@@ -1060,11 +1069,18 @@ const EarthEngineDashboard = () => {
     if (!mapInstanceRef.current || !data || !data.monthly_layers || !data.monthly_layers[monthIndex]) {
       console.log('❌ updateMapLayer failed - missing data:', {
         hasMap: !!mapInstanceRef.current,
+        hasMapElement: !!(mapInstanceRef.current && mapInstanceRef.current.getTargetElement()),
         hasData: !!data,
         hasMonthlyLayers: !!(data && data.monthly_layers),
         monthIndex,
         maxMonths: data?.monthly_layers?.length || 0
       });
+      return;
+    }
+
+    // Additional check to ensure map is fully initialized
+    if (!mapInstanceRef.current.getTargetElement()) {
+      console.log('❌ Map element not ready for layer update');
       return;
     }
 
@@ -1083,6 +1099,25 @@ const EarthEngineDashboard = () => {
       }),
       opacity: smooth ? 0 : 0.7, // Start transparent for smooth transition
       zIndex: 10, // Above base layers
+    });
+
+    console.log('🔧 Created new tile layer:', {
+      url: monthData.tile_url,
+      smooth: smooth,
+      opacity: smooth ? 0 : 0.7
+    });
+
+    // Add tile loading event listeners for debugging
+    newTileLayer.getSource().on('tileloadstart', () => {
+      console.log('🔄 Tile loading started for month:', monthData.month_name);
+    });
+    
+    newTileLayer.getSource().on('tileloadend', () => {
+      console.log('✅ Tile loading completed for month:', monthData.month_name);
+    });
+    
+    newTileLayer.getSource().on('tileloaderror', (event) => {
+      console.error('❌ Tile loading failed for month:', monthData.month_name, event);
     });
 
     if (smooth && currentLayer) {
