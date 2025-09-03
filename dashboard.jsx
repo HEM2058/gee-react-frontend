@@ -1163,6 +1163,16 @@ const EarthEngineDashboard = () => {
       
       console.log('🗺️ Map initialized successfully');
       console.log('Map instance:', map);
+      console.log('🌐 Production debugging - hostname:', window.location.hostname);
+      console.log('🌐 Production debugging - user agent:', navigator.userAgent);
+      
+      // Global error handler for debugging
+      window.addEventListener('error', (error) => {
+        console.error('🚨 GLOBAL ERROR CAUGHT:', error);
+      });
+      window.addEventListener('unhandledrejection', (event) => {
+        console.error('🚨 UNHANDLED PROMISE REJECTION:', event);
+      });
       
       // Close search results when clicking on map
       const closeSearchResults = () => {
@@ -1172,6 +1182,9 @@ const EarthEngineDashboard = () => {
       // Define click handler inside useEffect to avoid stale closure
       let clickTimeout = null;
       const clickHandler = async (event) => {
+        console.log('🔥 CLICK DETECTED - This should appear in production!', event);
+        console.log('🌐 Environment check:', window.location.hostname);
+        
         // Debounce clicks to prevent multiple rapid API calls
         if (clickTimeout) {
           clearTimeout(clickTimeout);
@@ -1241,8 +1254,20 @@ const EarthEngineDashboard = () => {
       let clickListenerKey = null;
       
       setTimeout(() => {
+        console.log('🔧 Attempting to add click listener to map:', map);
+        console.log('🔧 Map container:', map.getTargetElement());
         clickListenerKey = map.on('singleclick', clickHandler);
         console.log('✅ Single click event listener added to map after render');
+        console.log('🔧 Click listener key:', clickListenerKey);
+        
+        // Add backup DOM click listener for debugging
+        const mapElement = map.getTargetElement();
+        if (mapElement) {
+          mapElement.addEventListener('click', (domEvent) => {
+            console.log('🔧 FALLBACK: DOM click detected on map element!', domEvent);
+          });
+          console.log('🔧 Added fallback DOM click listener');
+        }
       }, 200);
       
       window.addEventListener('resize', updateSize);
