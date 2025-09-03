@@ -8,6 +8,7 @@ import VectorSource from 'ol/source/Vector';
 import XYZ from 'ol/source/XYZ';
 import Draw from 'ol/interaction/Draw';
 import { fromLonLat, toLonLat } from 'ol/proj';
+import { unByKey } from 'ol/Observable';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 // import jsPDF from 'jspdf';
 // import html2canvas from 'html2canvas';
@@ -1252,7 +1253,7 @@ const EarthEngineDashboard = () => {
         if (map) {
           // Properly remove event listeners using their keys
           if (clickListenerKey) {
-            map.unByKey(clickListenerKey);
+            unByKey(clickListenerKey);
           }
           console.log('🧹 Map event listeners cleaned up');
         }
