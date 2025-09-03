@@ -14,7 +14,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 // import html2canvas from 'html2canvas';
 import Papa from 'papaparse';
 import 'ol/ol.css';
-import { amazonAPI, customAPI } from './src/services/api';
+import { amazonAPI, customAPI, testAPIConnection } from './src/services/api';
 
 // Statistics Chart Component
 const StatisticsChart = ({ data, dataType, selectedMonth, onMonthSelect }) => {
@@ -1032,6 +1032,21 @@ const EarthEngineDashboard = () => {
   };
 
   useEffect(() => {
+    // Test API connectivity on component mount
+    const initializeAPI = async () => {
+      console.log('🚀 Initializing dashboard...');
+      const connectionTest = await testAPIConnection();
+      
+      if (connectionTest.connected) {
+        console.log('✅ API connection successful');
+      } else {
+        console.error('❌ API connection failed:', connectionTest.error);
+        // You might want to show a user notification here
+      }
+    };
+    
+    initializeAPI();
+    
     // Only fetch Amazon data when specifically in default mode
     if (aoiMode === 'default') {
       const currentData = analysisLayer === 'NDVI' ? ndviData : lstData;
@@ -1191,52 +1206,82 @@ const EarthEngineDashboard = () => {
         }
         
         clickTimeout = setTimeout(async () => {
-          closeSearchResults();
-          console.log('🖱️ Map clicked!', event);
-          console.log('Raw coordinate:', event.coordinate);
-          console.log('Pixel position:', event.pixel);
-          console.log('Current AOI mode:', aoiMode);
-          
-          const coordinate = event.coordinate;
-          const [lon, lat] = toLonLat(coordinate);
-          
-          console.log('Converted lon/lat:', lon, lat);
-          console.log('Current analysis layer:', analysisLayer);
-          console.log('Selected month:', selectedMonth);
-          
-          setClickPosition([event.pixel[0], event.pixel[1]]);
-          
-          // In default mode, call monthly point analysis API
-          if (aoiMode === 'default') {
-            console.log('🎯 Default mode: Calling monthly point analysis API');
-            await fetchMonthlyPointData(lon, lat);
-            return;
-          }
-          
-          // Original custom mode logic for pixel data
-          setPixelLoading(true);
-          setPixelInfo(null);
-
           try {
-            const data = analysisLayer === 'NDVI' ? ndviData : lstData;
-            console.log('Current data:', data);
+            closeSearchResults();
+            console.log('🖱️ Map clicked!', event);
+            console.log('Environment:', process.env.NODE_ENV || 'development');
+            console.log('User Agent:', navigator.userAgent);
+            console.log('Raw coordinate:', event.coordinate);
+            console.log('Pixel position:', event.pixel);
+            console.log('Current AOI mode:', aoiMode);
             
-            if (!data || !data.monthly_layers[selectedMonth]) {
-              console.log('❌ No data available for pixel query');
+            const coordinate = event.coordinate;
+            const [lon, lat] = toLonLat(coordinate);
+            
+            console.log('Converted lon/lat:', lon, lat);
+            console.log('Current analysis layer:', analysisLayer);
+            console.log('Selected month:', selectedMonth);
+            
+            setClickPosition([event.pixel[0], event.pixel[1]]);
+            
+            // In default mode, call monthly point analysis API
+            if (aoiMode === 'default') {
+              console.log('🎯 Default mode: Calling monthly point analysis API');
+              try {
+                await fetchMonthlyPointData(lon, lat);
+              } catch (apiError) {
+                console.error('❌ Monthly point API failed:', apiError);
+                console.error('API Error details:', {
+                  message: apiError.message,
+                  stack: apiError.stack,
+                  name: apiError.name
+                });
+                // Show user-friendly error
+                alert('Unable to fetch data for this location. Please check your internet connection and try again.');
+              }
               return;
             }
-
-            const pixelData = await getPixelValue([lon, lat]);
-            console.log('Final pixel data:', pixelData);
-            setPixelInfo(pixelData);
-            setSelectedCoordinate([lon, lat]);
             
-            const timeSeriesData = generateTimeSeriesData([lon, lat]);
-            setChartData(timeSeriesData);
-          } catch (error) {
-            console.error('❌ Error handling map click:', error);
-          } finally {
-            setPixelLoading(false);
+            // Original custom mode logic for pixel data
+            setPixelLoading(true);
+            setPixelInfo(null);
+
+            try {
+              const data = analysisLayer === 'NDVI' ? ndviData : lstData;
+              console.log('Current data:', data);
+              
+              if (!data || !data.monthly_layers[selectedMonth]) {
+                console.log('❌ No data available for pixel query');
+                alert('No data available for the selected month. Please select a different month.');
+                return;
+              }
+
+              const pixelData = await getPixelValue([lon, lat]);
+              console.log('Final pixel data:', pixelData);
+              setPixelInfo(pixelData);
+              setSelectedCoordinate([lon, lat]);
+              
+              const timeSeriesData = generateTimeSeriesData([lon, lat]);
+              setChartData(timeSeriesData);
+            } catch (pixelError) {
+              console.error('❌ Pixel data error:', pixelError);
+              console.error('Pixel Error details:', {
+                message: pixelError.message,
+                stack: pixelError.stack,
+                name: pixelError.name
+              });
+              alert('Unable to get pixel data for this location. Please try clicking elsewhere on the map.');
+            } finally {
+              setPixelLoading(false);
+            }
+          } catch (generalError) {
+            console.error('❌ General map click error:', generalError);
+            console.error('General Error details:', {
+              message: generalError.message,
+              stack: generalError.stack,
+              name: generalError.name
+            });
+            alert('An error occurred while processing your click. Please refresh the page and try again.');
           }
         }, 300); // 300ms debounce delay
       };
