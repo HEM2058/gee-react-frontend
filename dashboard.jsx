@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Download, ZoomIn, ZoomOut, Globe, Layers, Calendar, ChevronLeft, ChevronRight, Play, Pause, Square, BarChart3, FileText, Check } from 'lucide-react';
+import { MapPin, Download, ZoomIn, ZoomOut, Globe, Layers, Calendar, ChevronLeft, ChevronRight, Play, Pause, Square, BarChart3, FileText, Check, X } from 'lucide-react';
 import Map from 'ol/Map';
 import View from 'ol/View';
 import TileLayer from 'ol/layer/Tile';
@@ -11,7 +11,7 @@ import { fromLonLat, toLonLat } from 'ol/proj';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 // import jsPDF from 'jspdf';
 // import html2canvas from 'html2canvas';
-// import Papa from 'papaparse';
+import Papa from 'papaparse';
 import 'ol/ol.css';
 import { amazonAPI, customAPI } from './src/services/api';
 
@@ -28,6 +28,26 @@ const StatisticsChart = ({ data, dataType, selectedMonth, onMonthSelect }) => {
     fullName: item.month_name,
     isSelected: index === selectedMonth
   }));
+
+  const exportToCSV = () => {
+    const csvData = data.map(item => ({
+      month: item.month_name,
+      mean: item.statistics.mean,
+      min: item.statistics.min,
+      max: item.statistics.max
+    }));
+
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${dataType}_statistics.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const getColor = (type) => {
     if (dataType === 'NDVI') {
@@ -49,111 +69,115 @@ const StatisticsChart = ({ data, dataType, selectedMonth, onMonthSelect }) => {
 
   return (
     <div className="w-full">
-      {/* Chart Title */}
-      <div className="mb-4">
-        <h3 className="text-sm font-medium text-white mb-1">
-          {dataType} Statistics Over Time
-        </h3>
-        <p className="text-xs text-gray-400">
-          Click on bars to select different months
-        </p>
+      {/* Export Button */}
+      <div className="mb-2 flex justify-end">
+        <button
+          onClick={exportToCSV}
+          className="flex items-center gap-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+          title={`Export ${dataType} statistics to CSV`}
+        >
+          <Download size={12} />
+          Export CSV
+        </button>
       </div>
 
-      {/* Chart */}
-      <div className="h-64 mb-4">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-            <XAxis 
-              dataKey="month" 
-              stroke="#9ca3af"
-              fontSize={11}
-              tickFormatter={(value) => value.substring(0, 3)}
-            />
-            <YAxis 
-              stroke="#9ca3af"
-              fontSize={11}
-              domain={['dataMin - 0.1', 'dataMax + 0.1']}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: '#1f2937',
-                border: '1px solid #374151',
-                borderRadius: '8px',
-                color: '#fff'
-              }}
-              formatter={(value, name) => [
-                value.toFixed(4), 
-                name.charAt(0).toUpperCase() + name.slice(1)
-              ]}
-              labelFormatter={(label) => {
-                const item = chartData.find(d => d.month === label);
-                return item ? item.fullName : label;
-              }}
-            />
-            <Bar 
-              dataKey="mean" 
-              fill={colors.mean}
-              onClick={(data, index) => onMonthSelect(index)}
-              cursor="pointer"
-              opacity={0.8}
-            />
-            <Bar 
-              dataKey="min" 
-              fill={colors.min}
-              onClick={(data, index) => onMonthSelect(index)}
-              cursor="pointer"
-              opacity={0.6}
-            />
-            <Bar 
-              dataKey="max" 
-              fill={colors.max}
-              onClick={(data, index) => onMonthSelect(index)}
-              cursor="pointer"
-              opacity={0.6}
-            />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+    </div>
+  );
+};
 
-      {/* Legend */}
-      <div className="flex justify-center gap-4 text-xs">
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded" style={{ backgroundColor: colors.mean }}></div>
-          <span className="text-gray-300">Mean</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded" style={{ backgroundColor: colors.min }}></div>
-          <span className="text-gray-300">Min</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded" style={{ backgroundColor: colors.max }}></div>
-          <span className="text-gray-300">Max</span>
-        </div>
-      </div>
+// Monthly Point Data Popup Component
+const MonthlyPointDataPopup = ({ data, analysisLayer, coordinates, loading, onClose }) => {
+  if (!data && !loading) return null;
 
-      {/* Current Month Stats */}
-      {data[selectedMonth] && (
-        <div className="mt-4 bg-white/5 rounded-lg p-3">
-          <div className="text-sm font-medium text-white mb-2">
-            {data[selectedMonth].month_name} - {dataType} Statistics
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto">
+        <div className="p-6">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                Monthly {analysisLayer} Analysis
+              </h3>
+              {coordinates && (
+                <p className="text-sm text-gray-400 mt-1">
+                  📍 {coordinates[1].toFixed(6)}°, {coordinates[0].toFixed(6)}°
+                </p>
+              )}
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-xs">
-            <div className="text-center">
-              <div className="text-gray-400">Mean</div>
-              <div className="font-mono text-white">{data[selectedMonth].statistics.mean.toFixed(4)}</div>
+
+          {/* Content */}
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
+              <span className="ml-3 text-gray-300">Loading monthly data...</span>
             </div>
-            <div className="text-center">
-              <div className="text-gray-400">Min</div>
-              <div className="font-mono text-white">{data[selectedMonth].statistics.min.toFixed(4)}</div>
+          ) : data ? (
+            <div className="space-y-6">
+              {/* Analysis Results */}
+              <div className="bg-gray-800/50 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-white mb-3">Analysis Results</h4>
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-300">{analysisLayer} Value:</span>
+                    <span className="text-white font-mono">
+                      {(() => {
+                        // Try specific median fields first based on analysis layer
+                        if (analysisLayer === 'NDVI' && data.median_ndvi !== undefined) {
+                          return data.median_ndvi.toFixed(4);
+                        } else if (analysisLayer === 'LST' && data.median_lst !== undefined) {
+                          return data.median_lst.toFixed(4);
+                        } else if (data.value !== undefined) {
+                          // Fallback to generic value field
+                          return data.value.toFixed(4);
+                        } else {
+                          return 'N/A';
+                        }
+                      })()}
+                    </span>
+                  </div>
+                  
+                  {data.month && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">Month:</span>
+                      <span className="text-white">{data.month}</span>
+                    </div>
+                  )}
+                  
+                  {data.year && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-300">Year:</span>
+                      <span className="text-white">{data.year}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Additional Data */}
+              {data.additional_info && (
+                <div className="bg-gray-800/50 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-white mb-3">Additional Information</h4>
+                  <pre className="text-xs text-gray-300 bg-black/30 p-3 rounded overflow-x-auto">
+                    {JSON.stringify(data.additional_info, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
-            <div className="text-center">
-              <div className="text-gray-400">Max</div>
-              <div className="font-mono text-white">{data[selectedMonth].statistics.max.toFixed(4)}</div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="text-gray-400 mb-2">❌ No data available</div>
+              <p className="text-sm text-gray-500">Unable to fetch monthly data for this location.</p>
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };
@@ -258,19 +282,25 @@ const StatisticsPopup = ({ ndviData, lstData, selectedMonth, onMonthSelect, onCl
                 </div>
                 {ndviData[selectedMonth] && (
                   <div className="text-right">
-                    <div className="text-sm text-gray-300">{ndviData[selectedMonth].month_name}</div>
+
                     <div className="grid grid-cols-3 gap-4 text-xs mt-2">
                       <div className="text-center">
-                        <div className="text-gray-400">Mean</div>
-                        <div className="font-mono text-green-400 font-medium">{ndviData[selectedMonth].statistics.mean.toFixed(4)}</div>
+                        <div className="flex items-center justify-center gap-1 text-gray-400">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#10b981' }}></div>
+                          Mean
+                        </div>
                       </div>
                       <div className="text-center">
-                        <div className="text-gray-400">Min</div>
-                        <div className="font-mono text-red-400 font-medium">{ndviData[selectedMonth].statistics.min.toFixed(4)}</div>
+                        <div className="flex items-center justify-center gap-1 text-gray-400">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#ef4444' }}></div>
+                          Min
+                        </div>
                       </div>
                       <div className="text-center">
-                        <div className="text-gray-400">Max</div>
-                        <div className="font-mono text-blue-400 font-medium">{ndviData[selectedMonth].statistics.max.toFixed(4)}</div>
+                        <div className="flex items-center justify-center gap-1 text-gray-400">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#3b82f6' }}></div>
+                          Max
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -295,19 +325,24 @@ const StatisticsPopup = ({ ndviData, lstData, selectedMonth, onMonthSelect, onCl
                 </div>
                 {lstData[selectedMonth] && (
                   <div className="text-right">
-                    <div className="text-sm text-gray-300">{lstData[selectedMonth].month_name}</div>
                     <div className="grid grid-cols-3 gap-4 text-xs mt-2">
                       <div className="text-center">
-                        <div className="text-gray-400">Mean</div>
-                        <div className="font-mono text-amber-400 font-medium">{lstData[selectedMonth].statistics.mean.toFixed(4)}</div>
+                        <div className="flex items-center justify-center gap-1 text-gray-400">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#f59e0b' }}></div>
+                          Mean
+                        </div>
                       </div>
                       <div className="text-center">
-                        <div className="text-gray-400">Min</div>
-                        <div className="font-mono text-cyan-400 font-medium">{lstData[selectedMonth].statistics.min.toFixed(4)}</div>
+                        <div className="flex items-center justify-center gap-1 text-gray-400">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#06b6d4' }}></div>
+                          Min
+                        </div>
                       </div>
                       <div className="text-center">
-                        <div className="text-gray-400">Max</div>
-                        <div className="font-mono text-red-400 font-medium">{lstData[selectedMonth].statistics.max.toFixed(4)}</div>
+                        <div className="flex items-center justify-center gap-1 text-gray-400">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#dc2626' }}></div>
+                          Max
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -390,6 +425,10 @@ const EarthEngineDashboard = () => {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [isLayerSwitching, setIsLayerSwitching] = useState(false);
   const [showStatsPopup, setShowStatsPopup] = useState(false);
+  const [showMonthlyPointPopup, setShowMonthlyPointPopup] = useState(false);
+  const [monthlyPointData, setMonthlyPointData] = useState(null);
+  const [monthlyPointLoading, setMonthlyPointLoading] = useState(false);
+  const [clickedPointCoordinates, setClickedPointCoordinates] = useState(null);
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const vectorSourceRef = useRef(null);
@@ -701,6 +740,110 @@ const EarthEngineDashboard = () => {
       console.log('  - Stack:', error.stack);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMonthlyPointData = async (longitude, latitude) => {
+    // Prevent multiple concurrent API calls
+    if (monthlyPointLoading) {
+      console.log('🚫 Already loading monthly point data, skipping...');
+      return;
+    }
+    
+    setMonthlyPointLoading(true);
+    setClickedPointCoordinates([longitude, latitude]);
+    
+    try {
+      console.log(`🎯 Fetching monthly ${analysisLayer} data for point:`, { longitude, latitude, selectedMonth });
+      
+      // Get current data to extract the exact month info
+      const currentData = getCurrentData();
+      let monthString = '';
+      
+      console.log('📊 Current data:', currentData);
+      console.log('📅 Selected month index:', selectedMonth);
+      
+      if (currentData && currentData.monthly_layers && currentData.monthly_layers[selectedMonth]) {
+        // Get month info from the currently selected tile layer
+        const monthLayer = currentData.monthly_layers[selectedMonth];
+        console.log('🗓️ Month layer data:', monthLayer);
+        
+        if (monthLayer.month_name) {
+          const monthName = monthLayer.month_name; // e.g., "January 2024"
+          console.log('📅 Month name from tile layer:', monthName);
+          
+          const parts = monthName.split(' ');
+          if (parts.length >= 2) {
+            const monthText = parts[0];
+            const year = parts[1];
+            
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                               'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthNumber = monthNames.indexOf(monthText) + 1;
+            
+            if (monthNumber > 0) {
+              monthString = `${year}-${monthNumber.toString().padStart(2, '0')}`;
+              console.log('✅ Formatted month string:', monthString);
+            }
+          }
+        }
+      } else if (currentData && currentData.monthly_statistics && currentData.monthly_statistics[selectedMonth]) {
+        // Fallback to monthly_statistics if monthly_layers doesn't have month_name
+        const monthName = currentData.monthly_statistics[selectedMonth].month_name;
+        console.log('📅 Month name from statistics:', monthName);
+        
+        const parts = monthName.split(' ');
+        if (parts.length >= 2) {
+          const monthText = parts[0];
+          const year = parts[1];
+          
+          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                             'July', 'August', 'September', 'October', 'November', 'December'];
+          const monthNumber = monthNames.indexOf(monthText) + 1;
+          
+          if (monthNumber > 0) {
+            monthString = `${year}-${monthNumber.toString().padStart(2, '0')}`;
+            console.log('✅ Formatted month string (from stats):', monthString);
+          }
+        }
+      }
+      
+      if (!monthString) {
+        throw new Error('Unable to determine month parameter from current data');
+      }
+      
+      console.log('📡 Making API call with params:', { longitude, latitude, month: monthString, analysisLayer });
+      
+      let response;
+      if (analysisLayer === 'NDVI') {
+        response = await customAPI.ndviPointAnalysis({ 
+          longitude, 
+          latitude, 
+          month: monthString 
+        });
+      } else {
+        response = await customAPI.lstPointAnalysis({ 
+          longitude, 
+          latitude, 
+          month: monthString 
+        });
+      }
+      
+      console.log('✅ Monthly point analysis response:', response);
+      setMonthlyPointData(response);
+      setShowMonthlyPointPopup(true);
+      
+    } catch (error) {
+      console.error('❌ Error fetching monthly point data:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack
+      });
+      setMonthlyPointData(null);
+      // Still show popup to display error state
+      setShowMonthlyPointPopup(true);
+    } finally {
+      setMonthlyPointLoading(false);
     }
   };
   
@@ -1026,44 +1169,62 @@ const EarthEngineDashboard = () => {
       };
       
       // Define click handler inside useEffect to avoid stale closure
+      let clickTimeout = null;
       const clickHandler = async (event) => {
-        closeSearchResults();
-        console.log('🖱️ Map clicked!', event);
-        console.log('Raw coordinate:', event.coordinate);
-        console.log('Pixel position:', event.pixel);
+        // Debounce clicks to prevent multiple rapid API calls
+        if (clickTimeout) {
+          clearTimeout(clickTimeout);
+        }
         
-        const coordinate = event.coordinate;
-        const [lon, lat] = toLonLat(coordinate);
-        
-        console.log('Converted lon/lat:', lon, lat);
-        console.log('Current analysis layer:', analysisLayer);
-        console.log('Selected month:', selectedMonth);
-        
-        setClickPosition([event.pixel[0], event.pixel[1]]);
-        setPixelLoading(true);
-        setPixelInfo(null);
-
-        try {
-          const data = analysisLayer === 'NDVI' ? ndviData : lstData;
-          console.log('Current data:', data);
+        clickTimeout = setTimeout(async () => {
+          closeSearchResults();
+          console.log('🖱️ Map clicked!', event);
+          console.log('Raw coordinate:', event.coordinate);
+          console.log('Pixel position:', event.pixel);
+          console.log('Current AOI mode:', aoiMode);
           
-          if (!data || !data.monthly_layers[selectedMonth]) {
-            console.log('❌ No data available for pixel query');
+          const coordinate = event.coordinate;
+          const [lon, lat] = toLonLat(coordinate);
+          
+          console.log('Converted lon/lat:', lon, lat);
+          console.log('Current analysis layer:', analysisLayer);
+          console.log('Selected month:', selectedMonth);
+          
+          setClickPosition([event.pixel[0], event.pixel[1]]);
+          
+          // In default mode, call monthly point analysis API
+          if (aoiMode === 'default') {
+            console.log('🎯 Default mode: Calling monthly point analysis API');
+            await fetchMonthlyPointData(lon, lat);
             return;
           }
-
-          const pixelData = await getPixelValue([lon, lat]);
-          console.log('Final pixel data:', pixelData);
-          setPixelInfo(pixelData);
-          setSelectedCoordinate([lon, lat]);
           
-          const timeSeriesData = generateTimeSeriesData([lon, lat]);
-          setChartData(timeSeriesData);
-        } catch (error) {
-          console.error('❌ Error handling map click:', error);
-        } finally {
-          setPixelLoading(false);
-        }
+          // Original custom mode logic for pixel data
+          setPixelLoading(true);
+          setPixelInfo(null);
+
+          try {
+            const data = analysisLayer === 'NDVI' ? ndviData : lstData;
+            console.log('Current data:', data);
+            
+            if (!data || !data.monthly_layers[selectedMonth]) {
+              console.log('❌ No data available for pixel query');
+              return;
+            }
+
+            const pixelData = await getPixelValue([lon, lat]);
+            console.log('Final pixel data:', pixelData);
+            setPixelInfo(pixelData);
+            setSelectedCoordinate([lon, lat]);
+            
+            const timeSeriesData = generateTimeSeriesData([lon, lat]);
+            setChartData(timeSeriesData);
+          } catch (error) {
+            console.error('❌ Error handling map click:', error);
+          } finally {
+            setPixelLoading(false);
+          }
+        }, 300); // 300ms debounce delay
       };
       
       // Force initial render and handle resize
@@ -1075,18 +1236,12 @@ const EarthEngineDashboard = () => {
       
       setTimeout(updateSize, 100);
       
-      // Add click event listener after map is rendered
+      // Add single click event listener after map is rendered
       let clickListenerKey = null;
-      let singleClickListenerKey = null;
       
       setTimeout(() => {
-        clickListenerKey = map.on('click', clickHandler);
-        console.log('✅ Click event listener added to map after render');
-        
-        // Test with a simple click handler first
-        singleClickListenerKey = map.on('singleclick', (event) => {
-          console.log('🎯 OpenLayers singleclick event fired!', event);
-        });
+        clickListenerKey = map.on('singleclick', clickHandler);
+        console.log('✅ Single click event listener added to map after render');
       }, 200);
       
       window.addEventListener('resize', updateSize);
@@ -1099,14 +1254,11 @@ const EarthEngineDashboard = () => {
           if (clickListenerKey) {
             map.unByKey(clickListenerKey);
           }
-          if (singleClickListenerKey) {
-            map.unByKey(singleClickListenerKey);
-          }
           console.log('🧹 Map event listeners cleaned up');
         }
       };
     }
-  }, [analysisLayer, selectedMonth, ndviData, lstData]); // Add dependencies
+  }, [analysisLayer, selectedMonth, ndviData, lstData, aoiMode]); // Add dependencies
 
   useEffect(() => {
     const data = getCurrentData();
@@ -1147,6 +1299,14 @@ const EarthEngineDashboard = () => {
       }
     }
   }, [analysisLayer, aoiMode, drawnFeatures, customNdviData, customLstData, pendingPolygonCoords, customLoading]);
+
+  // Sync monthly point data popup with sidebar settings
+  useEffect(() => {
+    if (showMonthlyPointPopup && clickedPointCoordinates && aoiMode === 'default') {
+      console.log('🔄 Sidebar settings changed - refetching monthly point data');
+      fetchMonthlyPointData(clickedPointCoordinates[0], clickedPointCoordinates[1]);
+    }
+  }, [selectedMonth, analysisLayer, showMonthlyPointPopup, clickedPointCoordinates, aoiMode]);
 
   useEffect(() => {
     if (mapInstanceRef.current && areaCoordinates[selectedArea]) {
@@ -1317,6 +1477,9 @@ const EarthEngineDashboard = () => {
       // Clear any drawn features and return to default view
       clearDrawings();
       setDrawingMode(null);
+    } else if (mode === 'draw') {
+      // Automatically start polygon drawing when switching to draw mode
+      setTimeout(() => toggleDrawingMode('polygon'), 100);
       // Clear custom data
       setCustomNdviData(null);
       setCustomLstData(null);
@@ -1472,10 +1635,9 @@ const EarthEngineDashboard = () => {
             </div>
             <div>
               <h1 className="text-sm lg:text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                Earth Engine Pro
+                Rainforest Analyser
               </h1>
             
-              <p className="text-xs lg:text-sm text-gray-300 hidden lg:block">Amazon Rainforest Analysis</p>
             </div>
           </div>
         </div>
@@ -1554,37 +1716,12 @@ const EarthEngineDashboard = () => {
                     : 'bg-white/5 text-gray-300 hover:bg-white/10 backdrop-blur-sm'
                 }`}
               >
-                ✏️ Draw Custom
+                ✏️ {aoiMode === 'draw' && drawingMode === 'polygon' ? 'Drawing Polygon...' : 'Draw Custom'}
               </button>
             </div>
             
             {aoiMode === 'draw' && (
               <>
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <button
-                    onClick={() => toggleDrawingMode('polygon')}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 flex items-center justify-center gap-2 ${
-                      drawingMode === 'polygon'
-                        ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
-                        : 'bg-white/5 text-gray-300 hover:bg-white/10 backdrop-blur-sm'
-                    }`}
-                  >
-                    <div className="w-3 h-3 border-2 border-current transform rotate-45"></div>
-                    {drawingMode === 'polygon' ? 'Drawing...' : 'Polygon'}
-                  </button>
-                  
-                  <button
-                    onClick={() => toggleDrawingMode('point')}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 flex items-center justify-center gap-2 ${
-                      drawingMode === 'point'
-                        ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
-                        : 'bg-white/5 text-gray-300 hover:bg-white/10 backdrop-blur-sm'
-                    }`}
-                  >
-                    <MapPin className="w-3 h-3" />
-                    {drawingMode === 'point' ? 'Pinning...' : 'Pin Point'}
-                  </button>
-                </div>
                 
                 {(drawnFeatures.length > 0 || showAnalysisButton) && (
                   <div className="mb-3 space-y-2">
@@ -1641,7 +1778,7 @@ const EarthEngineDashboard = () => {
             {aoiMode === 'default' && (
               <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
                 <div className="text-xs text-green-400">
-                  🌳 Using default Amazon Rainforest boundary
+                  🌳 Using default Amazon rainforest (Brazil) boundary
                 </div>
               </div>
             )}
@@ -1671,7 +1808,7 @@ const EarthEngineDashboard = () => {
                         max: item.statistics.max,
                         index: index
                       })) || []}
-                      margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                      margin={{ top: 20, right: 20, left: 10, bottom: 20 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
                       <XAxis 
@@ -1684,6 +1821,7 @@ const EarthEngineDashboard = () => {
                         axisLine={false}
                         tickLine={false}
                         tick={{ fill: '#9CA3AF', fontSize: 12 }}
+                        width={25}
                       />
                       <Tooltip
                         contentStyle={{
@@ -1744,11 +1882,43 @@ const EarthEngineDashboard = () => {
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-sm font-medium text-white mb-1">
-                      {getMonthNames()[selectedMonth] || 'Loading...'}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      Hover over chart points for detailed values
+                 
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => setShowStatsPopup(true)}
+                        className="p-1 rounded bg-gradient-to-r from-green-500/20 to-orange-500/20 hover:from-green-500/30 hover:to-orange-500/30 backdrop-blur-sm transition-all duration-300 hover:scale-105 shadow-lg border border-white/20"
+                        title="View Statistics Overview"
+                      >
+                        <BarChart3 className="w-3 h-3 text-white" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          const currentData = getCurrentData();
+                          if (currentData && currentData.monthly_statistics) {
+                            const csvData = currentData.monthly_statistics.map(item => ({
+                              month: item.month_name,
+                              mean: item.statistics.mean,
+                              min: item.statistics.min,
+                              max: item.statistics.max
+                            }));
+                            const csv = Papa.unparse(csvData);
+                            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                            const link = document.createElement('a');
+                            const url = URL.createObjectURL(blob);
+                            link.setAttribute('href', url);
+                            link.setAttribute('download', `${analysisLayer}_statistics.csv`);
+                            link.style.visibility = 'hidden';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                        title={`Export ${analysisLayer} statistics to CSV`}
+                      >
+                        <Download size={10} />
+                        CSV
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1848,12 +2018,6 @@ const EarthEngineDashboard = () => {
           </div>
         )}
 
-        {/* Export Section */}
-        <div className="p-6 border-t border-white/10">
-          <div className="text-center text-gray-500 text-sm">
-            Export functionality coming soon
-          </div>
-        </div>
 
       </div>
 
@@ -1862,13 +2026,13 @@ const EarthEngineDashboard = () => {
         
         {/* Floating Top Bar */}
         <div className="absolute top-4 left-4 right-4 z-20">
-          <div className="bg-black/20 backdrop-blur-xl border border-white/10 rounded-2xl p-4 flex items-center justify-between shadow-2xl">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-sm">
-                <Layers className="w-5 h-5 text-blue-400" />
+          <div className="bg-black/20 backdrop-blur-xl border border-white/10 rounded-2xl p-2 md:p-4 flex items-center justify-between shadow-2xl">
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="p-1 md:p-2 rounded-lg bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-sm">
+                <Layers className="w-4 h-4 md:w-5 md:h-5 text-blue-400" />
               </div>
               <div>
-                <span className="text-white font-medium">Amazon Rainforest</span>
+                <span className="text-white font-medium text-sm md:text-base">Amazon rainforest (Brazil)</span>
                 <div className="text-xs text-gray-300">
                   {analysisLayer} • {getMonthNames()[selectedMonth] || 'Loading...'}
                   {aoiMode === 'draw' && drawnFeatures.length > 0 && <span className="ml-2 text-blue-400">• {drawnFeatures.length} Custom AOI</span>}
@@ -1877,10 +2041,10 @@ const EarthEngineDashboard = () => {
               </div>
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 md:gap-2">
               {/* Search Bar */}
               <div className="relative">
-                <div className="flex items-center bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 px-3 py-2">
+                <div className="flex items-center bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 px-2 py-1 md:px-3 md:py-2">
                   <input
                     type="text"
                     placeholder="Search location..."
@@ -1904,7 +2068,7 @@ const EarthEngineDashboard = () => {
                         setShowSearchResults(true);
                       }
                     }}
-                    className="bg-transparent text-white placeholder-gray-400 text-xs outline-none w-32"
+                    className="bg-transparent text-white placeholder-gray-400 text-xs outline-none w-20 md:w-32"
                   />
                   <button
                     onClick={() => searchLocation(searchQuery)}
@@ -1912,9 +2076,9 @@ const EarthEngineDashboard = () => {
                     className="ml-2 text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
                   >
                     {isSearching ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <div className="animate-spin rounded-full h-3 w-3 md:h-4 md:w-4 border-b-2 border-white"></div>
                     ) : (
-                      <Globe className="w-4 h-4" />
+                      <Globe className="w-3 h-3 md:w-4 md:h-4" />
                     )}
                   </button>
                 </div>
@@ -1946,7 +2110,7 @@ const EarthEngineDashboard = () => {
                   <button
                     key={key}
                     onClick={() => switchBaseLayer(key)}
-                    className={`px-3 py-2 rounded-lg text-xs font-medium transition-all duration-300 ${
+                    className={`px-2 py-1 md:px-3 md:py-2 rounded-lg text-xs font-medium transition-all duration-300 ${
                       basemap === key
                         ? 'bg-white text-gray-900 shadow-lg'
                         : 'text-white hover:bg-white/20'
@@ -1959,24 +2123,15 @@ const EarthEngineDashboard = () => {
               
               <button 
                 onClick={handleZoomIn}
-                className="p-3 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-sm transition-all duration-300 shadow-lg"
+                className="p-2 md:p-3 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-sm transition-all duration-300 shadow-lg"
               >
-                <ZoomIn className="w-4 h-4 text-white" />
+                <ZoomIn className="w-3 h-3 md:w-4 md:h-4 text-white" />
               </button>
               <button 
                 onClick={handleZoomOut}
-                className="p-3 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-sm transition-all duration-300 shadow-lg"
+                className="p-2 md:p-3 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-sm transition-all duration-300 shadow-lg"
               >
-                <ZoomOut className="w-4 h-4 text-white" />
-              </button>
-              
-              {/* Statistics Overview Button */}
-              <button
-                onClick={() => setShowStatsPopup(true)}
-                className="p-3 rounded-xl bg-gradient-to-r from-green-500/20 to-orange-500/20 hover:from-green-500/30 hover:to-orange-500/30 backdrop-blur-sm transition-all duration-300 hover:scale-105 shadow-lg border border-white/20"
-                title="View Statistics Overview"
-              >
-                <BarChart3 className="w-4 h-4 text-white" />
+                <ZoomOut className="w-3 h-3 md:w-4 md:h-4 text-white" />
               </button>
 
               {chartData.length > 0 && (
@@ -2103,38 +2258,7 @@ const EarthEngineDashboard = () => {
           </div>
 
           {/* Floating Info Panel */}
-          <div className="absolute bottom-4 left-4 z-20">
-            <div className="bg-black/20 backdrop-blur-xl border border-white/10 rounded-xl p-4 shadow-2xl max-w-sm">
-              <div className="text-xs text-gray-300 mb-2">Current View</div>
-              <div className="text-white font-medium">
-                {analysisLayer} Analysis
-              </div>
-              <div className="text-xs text-gray-400 mt-1">
-                Data from {getMonthNames()[selectedMonth] || 'Loading...'}
-              </div>
-              {drawingMode && (
-                <div className="mt-2 pt-2 border-t border-white/10">
-                  <div className="text-xs text-blue-400">
-                    📍 Drawing polygon mode active
-                  </div>
-                </div>
-              )}
-              {aoiMode === 'draw' && drawnFeatures.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-white/10">
-                  <div className="text-xs text-green-400">
-                    ✅ {drawnFeatures.length} custom AOI drawn
-                  </div>
-                </div>
-              )}
-              {aoiMode === 'default' && (
-                <div className="mt-2 pt-2 border-t border-white/10">
-                  <div className="text-xs text-green-400">
-                    🌳 Using default rainforest boundary
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+      
 
           {/* Time Series Chart Overlay */}
           {showChart && chartData.length > 0 && (
@@ -2297,6 +2421,21 @@ const EarthEngineDashboard = () => {
           selectedMonth={selectedMonth}
           onMonthSelect={setSelectedMonth}
           onClose={() => setShowStatsPopup(false)}
+        />
+      )}
+
+      {/* Monthly Point Data Popup */}
+      {showMonthlyPointPopup && (
+        <MonthlyPointDataPopup
+          data={monthlyPointData}
+          analysisLayer={analysisLayer}
+          coordinates={clickedPointCoordinates}
+          loading={monthlyPointLoading}
+          onClose={() => {
+            setShowMonthlyPointPopup(false);
+            setMonthlyPointData(null);
+            setClickedPointCoordinates(null);
+          }}
         />
       )}
 
